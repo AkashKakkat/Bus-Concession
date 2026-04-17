@@ -10,13 +10,24 @@ const routeRoutes = require("./Routes/routeRoutes");
 const walletRoutes = require("./Routes/walletRoutes");
 const paymentRoutes = require("./Routes/paymentRoutes");
 
-
 connect_db()
 
 const app = express();
+const PORT = process.env.PORT || 5000;
+
+const allowedOrigins = [
+    "http://localhost:5173",
+    process.env.FRONTEND_URL
+].filter(Boolean);
 
 app.use(cors({
-    origin: "http://localhost:5173"
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+
+        return callback(new Error("Not allowed by CORS"));
+    }
 }));
 
 app.use(express.json());
@@ -58,7 +69,7 @@ app.get("/", (req, res) => {
     res.send("Bus Concession API is Running...");
 });
 
-app.listen(5000, () => {
-    console.log("Server is running on port 5000");
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server is running on port ${PORT}`);
 
 });
