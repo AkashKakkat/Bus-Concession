@@ -15,14 +15,20 @@ connect_db()
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const normalizeOrigin = (value = "") => value.trim().replace(/\/+$/, "");
+
 const allowedOrigins = [
     "http://localhost:5173",
     process.env.FRONTEND_URL
-].filter(Boolean);
+]
+    .filter(Boolean)
+    .map(normalizeOrigin);
 
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        const normalizedOrigin = normalizeOrigin(origin);
+
+        if (!origin || allowedOrigins.includes(normalizedOrigin)) {
             return callback(null, true);
         }
 
