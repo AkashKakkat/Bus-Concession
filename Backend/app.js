@@ -1,6 +1,6 @@
 const cors = require("cors")
 const express = require("express");
-require("dotenv").config();
+require("./Config/loadEnv");
 const connect_db = require("./Config/db");
 const Student = require("./Models/studentModel");
 const authRoutes = require("./Routes/authRoutes");

@@ -1,8 +1,8 @@
 const studentModel = require("../Models/studentModel");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const sendOTP = require("..//Utils/sendMail");
-const { sendTextMail } = require("..//Utils/sendMail");
+const sendOTP = require("../Utils/sendMail");
+const { sendTextMail } = require("../Utils/sendMail");
 const fs = require("fs");
 
 let otpStore = {};
@@ -371,7 +371,7 @@ const sendOtpController = async (req, res) => {
         }
 
         //  Generate OTP
-        const otp = Math.floor(100000 + Math.random() * 900000);
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
         //  Store OTP with expiry
         otpStore[normalizedEmail] = {
@@ -382,7 +382,12 @@ const sendOtpController = async (req, res) => {
 
         verifiedEmails.delete(normalizedEmail);
 
-        await sendOTP(normalizedEmail, otp);
+        try {
+            await sendOTP(normalizedEmail, otp);
+        } catch (error) {
+            delete otpStore[normalizedEmail];
+            throw error;
+        }
 
         res.send({
             message: "OTP sent successfully"
