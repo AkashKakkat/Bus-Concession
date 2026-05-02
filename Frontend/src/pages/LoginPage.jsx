@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import InputField from "../components/InputField";
+import { useAuth } from "../context/AuthContext";
 import { loginStudent } from "../services/authService";
 import { getApiErrorMessage } from "../utils/getApiErrorMessage";
 
@@ -13,15 +14,16 @@ const initialForm = {
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { setSession, studentToken, studentRole } = useAuth();
   const [formData, setFormData] = useState(initialForm);
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (localStorage.getItem("token")) {
+    if (studentToken && studentRole === "student") {
       navigate("/dashboard", { replace: true });
     }
-  }, [navigate]);
+  }, [navigate, studentRole, studentToken]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -51,7 +53,7 @@ function LoginPage() {
 
       const data = await loginStudent(payload);
 
-      localStorage.setItem("token", data.token);
+      setSession("student", data.token, data.role || "student");
       navigate("/dashboard", { replace: true });
     } catch (error) {
       setErrorMessage(getApiErrorMessage(error, "Login failed. Please try again."));
@@ -148,6 +150,15 @@ function LoginPage() {
                 New student account?{" "}
                 <Link className="font-semibold text-brand-600 hover:text-brand-700" to="/signup">
                   Create one here
+                </Link>
+              </p>
+              <p className="mt-3 text-sm text-slate-600">
+                Forgot your password?{" "}
+                <Link
+                  className="font-semibold text-brand-600 hover:text-brand-700"
+                  to="/forgot-password"
+                >
+                  Reset it here
                 </Link>
               </p>
             </div>

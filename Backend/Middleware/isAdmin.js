@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 
-const conductorMiddleware = (req, res, next) => {
+const isAdmin = (req, res, next) => {
     try {
         const bearerToken = req.headers.authorization;
 
@@ -20,21 +20,19 @@ const conductorMiddleware = (req, res, next) => {
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        if (decoded.role !== "conductor") {
+        if (decoded.role !== "admin") {
             return res.status(403).send({
-                message: "Access denied (Conductor only)"
+                message: "Access denied (Admin only)"
             });
         }
 
-        req.conductor = decoded;
-
+        req.admin = decoded;
         next();
-
-    } catch (err) {
+    } catch (error) {
         return res.status(401).send({
-            message: "Invalid token"
+            message: "Invalid or expired token"
         });
     }
 };
 
-module.exports = conductorMiddleware;
+module.exports = isAdmin;

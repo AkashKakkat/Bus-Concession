@@ -4,6 +4,7 @@ import { QrReader } from "react-qr-reader";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import InputField from "../components/InputField";
+import { useAuth } from "../context/AuthContext";
 import { completePayment } from "../services/paymentService";
 import { verifyStudentPass } from "../services/routeService";
 import { getApiErrorMessage } from "../utils/getApiErrorMessage";
@@ -18,6 +19,7 @@ const wait = (duration) => new Promise((resolve) => window.setTimeout(resolve, d
 
 function ConductorDashboard() {
   const navigate = useNavigate();
+  const { conductorToken, clearSession } = useAuth();
   const [formData, setFormData] = useState(initialForm);
   const [result, setResult] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
@@ -29,12 +31,10 @@ function ConductorDashboard() {
   const [paymentCompleted, setPaymentCompleted] = useState(false);
 
   useEffect(() => {
-    const conductorToken = localStorage.getItem("conductorToken");
-
     if (!conductorToken) {
       navigate("/conductor-login", { replace: true });
     }
-  }, [navigate]);
+  }, [conductorToken, navigate]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -83,8 +83,6 @@ function ConductorDashboard() {
       return;
     }
 
-    const conductorToken = localStorage.getItem("conductorToken");
-
     if (!conductorToken) {
       navigate("/conductor-login", { replace: true });
       return;
@@ -112,7 +110,7 @@ function ConductorDashboard() {
       setCameraMessage("");
     } catch (error) {
       if (error?.response?.status === 401) {
-        localStorage.removeItem("conductorToken");
+        clearSession("conductor");
         navigate("/conductor-login", { replace: true });
         return;
       }
@@ -130,8 +128,6 @@ function ConductorDashboard() {
   };
 
   const handleCompletePayment = async () => {
-    const conductorToken = localStorage.getItem("conductorToken");
-
     if (!conductorToken) {
       navigate("/conductor-login", { replace: true });
       return;
@@ -170,7 +166,7 @@ function ConductorDashboard() {
       );
     } catch (error) {
       if (error?.response?.status === 401) {
-        localStorage.removeItem("conductorToken");
+        clearSession("conductor");
         navigate("/conductor-login", { replace: true });
         return;
       }
@@ -183,7 +179,7 @@ function ConductorDashboard() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("conductorToken");
+    clearSession("conductor");
     navigate("/conductor-login", { replace: true });
   };
 

@@ -31,6 +31,34 @@ const studentSchema = new mongoose.Schema({
     walletBalance: {
         type: Number,
         default: 0
+    },
+    role: {
+        type: String,
+        enum: ["student"],
+        default: "student"
+    },
+    verificationStatus: {
+        type: String,
+        enum: ["pending", "approved", "rejected"],
+        default: "pending"
+    },
+    verifiedAt: {
+        type: Date
+    },
+    verifiedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Admin"
+    },
+    collegeIdCard: {
+        filename: String,
+        originalName: String,
+        mimetype: String,
+        size: Number,
+        path: String,
+        uploadedAt: {
+            type: Date,
+            default: Date.now
+        }
     }
 },{
     timestamps:true

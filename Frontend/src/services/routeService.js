@@ -1,7 +1,13 @@
 import api from "./api";
 
-export const getAllRoutes = async () => {
-  const response = await api.get("/route/all");
+export const getAllRoutes = async ({ token } = {}) => {
+  const response = await api.get("/route/all", {
+    headers: token
+      ? {
+          Authorization: `Bearer ${token}`,
+        }
+      : {},
+  });
   return response.data;
 };
 

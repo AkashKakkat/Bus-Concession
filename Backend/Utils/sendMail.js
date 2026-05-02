@@ -8,9 +8,17 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-const sendOTP = async (to, otp) => {
+const sendTextMail = async ({ to, subject, text }) => {
     await transporter.sendMail({
         from: process.env.EMAIL,
+        to,
+        subject,
+        text
+    });
+};
+
+const sendOTP = async (to, otp) => {
+    await sendTextMail({
         to,
         subject: "Your OTP Code",
         text: `Your OTP is: ${otp}`
@@ -18,3 +26,4 @@ const sendOTP = async (to, otp) => {
 };
 
 module.exports = sendOTP;
+module.exports.sendTextMail = sendTextMail;

@@ -16,6 +16,7 @@ const initialSignupForm = {
   email: "",
   password: "",
   college: "",
+  collegeIdCard: null,
 };
 
 function SignupPage() {
@@ -124,11 +125,11 @@ function SignupPage() {
   };
 
   const handleSignupInputChange = (event) => {
-    const { name, value } = event.target;
+    const { files, name, type, value } = event.target;
 
     setSignupForm((current) => ({
       ...current,
-      [name]: value,
+      [name]: type === "file" ? files?.[0] || null : value,
     }));
 
     if (name === "email") {
@@ -145,16 +146,24 @@ function SignupPage() {
       return;
     }
 
+    if (!signupForm.collegeIdCard) {
+      setMessage("error", "Please upload your college ID card for admin verification.");
+      return;
+    }
+
     setLoading((current) => ({ ...current, signup: true }));
 
     try {
-      const payload = {
-        ...signupForm,
-        email: email.trim(),
-      };
+      const payload = new FormData();
+      payload.append("student_id", signupForm.student_id.trim());
+      payload.append("name", signupForm.name.trim());
+      payload.append("email", email.trim());
+      payload.append("password", signupForm.password);
+      payload.append("college", signupForm.college.trim());
+      payload.append("collegeIdCard", signupForm.collegeIdCard);
 
       const data = await signupStudent(payload);
-      setSubmitSuccess(data.message || "Signup completed successfully.");
+      setSubmitSuccess(data.message || "Registration submitted for admin approval.");
       setSignupCompleted(true);
       setOtp("");
       setOtpSent(false);
@@ -209,7 +218,7 @@ function SignupPage() {
               <StepBadge
                 step="3"
                 title="Complete Signup"
-                description="Create the student account only after verification."
+                description="Submit the student account for admin approval."
                 active={isVerified || signupCompleted}
                 complete={Boolean(submitSuccess) || signupCompleted}
               />
@@ -269,7 +278,7 @@ function SignupPage() {
                     name="student_id"
                     value={signupForm.student_id}
                     onChange={handleSignupInputChange}
-                    placeholder="BCS001"
+                    placeholder="123456"
                     disabled={!signupEnabled}
                   />
                   <InputField
@@ -281,6 +290,21 @@ function SignupPage() {
                     disabled={!signupEnabled}
                   />
                 </div>
+
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-slate-700">College ID Card</span>
+                  <input
+                    type="file"
+                    name="collegeIdCard"
+                    accept="image/png,image/jpeg,image/webp,application/pdf"
+                    onChange={handleSignupInputChange}
+                    disabled={!signupEnabled}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition file:mr-4 file:rounded-xl file:border-0 file:bg-slate-100 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-700 focus:border-brand-500 focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                  />
+                  <span className="block text-xs text-slate-500">
+                    Upload a clear JPG, PNG, WEBP, or PDF. Admin approval is required before login.
+                  </span>
+                </label>
 
                 <InputField
                   label="Email"
@@ -327,7 +351,7 @@ function SignupPage() {
                     }`}
                   >
                     {signupCompleted
-                      ? "Signup completed"
+                      ? "Waiting for admin approval"
                       : isVerified
                         ? "Verified"
                         : "Not verified"}

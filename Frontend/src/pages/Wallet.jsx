@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import InputField from "../components/InputField";
+import { useAuth } from "../context/AuthContext";
 import {
   addWalletMoney,
   getWalletBalance,
@@ -19,6 +20,7 @@ const formatCurrency = (amount) =>
 
 function Wallet() {
   const navigate = useNavigate();
+  const { studentToken, clearSession } = useAuth();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState([]);
   const [amount, setAmount] = useState("");
@@ -46,9 +48,7 @@ function Wallet() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
+    if (!studentToken) {
       navigate("/login", { replace: true });
       return;
     }
@@ -58,10 +58,10 @@ function Wallet() {
       setErrorMessage("");
 
       try {
-        await fetchWalletBalance(token);
+        await fetchWalletBalance(studentToken);
       } catch (error) {
         if (error?.response?.status === 401) {
-          localStorage.removeItem("token");
+          clearSession("student");
           navigate("/login", { replace: true });
           return;
         }
@@ -73,17 +73,16 @@ function Wallet() {
     };
 
     loadWallet();
-  }, [navigate]);
+  }, [clearSession, navigate, studentToken]);
 
   const handleAddMoney = async (event) => {
     event.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
 
-    const token = localStorage.getItem("token");
     const parsedAmount = Number(amount);
 
-    if (!token) {
+    if (!studentToken) {
       navigate("/login", { replace: true });
       return;
     }
@@ -97,7 +96,7 @@ function Wallet() {
 
     try {
       const data = await addWalletMoney({
-        token,
+        token: studentToken,
         amount: parsedAmount,
       });
 
@@ -106,11 +105,11 @@ function Wallet() {
       setSuccessMessage(data.message || "Money added successfully.");
 
       if (showTransactions) {
-        await fetchTransactions(token);
+        await fetchTransactions(studentToken);
       }
     } catch (error) {
       if (error?.response?.status === 401) {
-        localStorage.removeItem("token");
+        clearSession("student");
         navigate("/login", { replace: true });
         return;
       }
@@ -122,9 +121,7 @@ function Wallet() {
   };
 
   const handleToggleTransactions = async () => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
+    if (!studentToken) {
       navigate("/login", { replace: true });
       return;
     }
@@ -134,10 +131,10 @@ function Wallet() {
 
     if (!showTransactions) {
       try {
-        await fetchTransactions(token);
+        await fetchTransactions(studentToken);
       } catch (error) {
         if (error?.response?.status === 401) {
-          localStorage.removeItem("token");
+          clearSession("student");
           navigate("/login", { replace: true });
           return;
         }

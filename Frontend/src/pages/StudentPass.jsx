@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { QRCodeCanvas } from "qrcode.react";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
+import { useAuth } from "../context/AuthContext";
 import { generateStudentPass, getStudentProfile } from "../services/routeService";
 import { getApiErrorMessage } from "../utils/getApiErrorMessage";
 
@@ -22,6 +23,7 @@ const getFareDetails = (route) => {
 
 function StudentPass() {
   const navigate = useNavigate();
+  const { studentToken, clearSession } = useAuth();
   const [passToken, setPassToken] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -37,9 +39,7 @@ function StudentPass() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
+    if (!studentToken) {
       navigate("/login", { replace: true });
       return;
     }
@@ -49,7 +49,7 @@ function StudentPass() {
       setErrorMessage("");
 
       try {
-        const data = await getStudentProfile({ token });
+        const data = await getStudentProfile({ token: studentToken });
         const selectedRoute = data?.data?.route || null;
 
         setHasSelectedRoute(Boolean(selectedRoute));
@@ -57,7 +57,7 @@ function StudentPass() {
         setFareDetails(getFareDetails(selectedRoute));
       } catch (error) {
         if (error?.response?.status === 401) {
-          localStorage.removeItem("token");
+          clearSession("student");
           navigate("/login", { replace: true });
           return;
         }
@@ -69,7 +69,7 @@ function StudentPass() {
     };
 
     checkSelectedRoute();
-  }, [navigate]);
+  }, [clearSession, navigate, studentToken]);
 
   const showCopyFeedback = (message) => {
     setCopyMessage(message);
@@ -83,9 +83,7 @@ function StudentPass() {
     setErrorMessage("");
     setCopyMessage("");
 
-    const token = localStorage.getItem("token");
-
-    if (!token) {
+    if (!studentToken) {
       navigate("/login", { replace: true });
       return;
     }
@@ -98,7 +96,7 @@ function StudentPass() {
     setIsLoading(true);
 
     try {
-      const data = await generateStudentPass({ token });
+      const data = await generateStudentPass({ token: studentToken });
       setPassToken(data.token || "");
       setSuccessMessage(data.message || "Pass generated successfully");
       setFareDetails({
@@ -108,7 +106,7 @@ function StudentPass() {
       });
     } catch (error) {
       if (error?.response?.status === 401) {
-        localStorage.removeItem("token");
+        clearSession("student");
         navigate("/login", { replace: true });
         return;
       }

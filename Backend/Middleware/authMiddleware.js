@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
+const Student = require("../Models/studentModel");
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
     try {
         const bearerToken = req.headers.authorization;
 
@@ -17,19 +18,34 @@ const authMiddleware = (req, res, next) => {
                 message: "Invalid token format"
             });
         }
-        console.log("HEADER:", req.headers.authorization);
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        console.log("DECODED:", decoded);
+
+        if (decoded.role !== "student") {
+            return res.status(403).send({
+                message: "Access denied (Student only)"
+            });
+        }
+
+        const student = await Student.findById(decoded.id).select("verificationStatus");
+
+        if (!student) {
+            return res.status(404).send({
+                message: "Student not found"
+            });
+        }
+
+        if (student.verificationStatus && student.verificationStatus !== "approved") {
+            return res.status(403).send({
+                message: "Student account is not approved by admin"
+            });
+        }
+
         req.student = decoded;
 
         next();
 
 
     } catch (error) {
-        console.log("JWT ERROR:", error.message);
-        console.log("HEADER:", req.headers.authorization);
-
-
         return res.status(401).send({
             message: "Invalid or expired token"
         });

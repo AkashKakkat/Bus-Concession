@@ -17,6 +17,11 @@ const conductorSchema = new mongoose.Schema({
     bus_no: {
         type: String,
         required: true
+    },
+    role: {
+        type: String,
+        enum: ["student", "conductor", "admin"],
+        default: "conductor"
     }
 }, {
     timestamps: true

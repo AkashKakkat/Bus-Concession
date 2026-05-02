@@ -6,11 +6,17 @@ const Student = require("./Models/studentModel");
 const authRoutes = require("./Routes/authRoutes");
 const studentRoutes = require("./Routes/studentRoutes");
 const conductorRoutes = require("./Routes/conductorRoutes");
+const adminRoutes = require("./Routes/adminRoutes");
 const routeRoutes = require("./Routes/routeRoutes");
 const walletRoutes = require("./Routes/walletRoutes");
 const paymentRoutes = require("./Routes/paymentRoutes");
+const ensureDefaultAdmin = require("./Utils/ensureDefaultAdmin");
 
 connect_db()
+    .then(() => ensureDefaultAdmin())
+    .catch((error) => {
+        console.log("Admin bootstrap skipped:", error.message);
+    });
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -45,6 +51,8 @@ app.use("/student", studentRoutes);
 
 app.use("/conductor", conductorRoutes);
 
+app.use("/admin", adminRoutes);
+
 app.use("/route", routeRoutes);
 
 app.use("/wallet", walletRoutes);
@@ -73,6 +81,16 @@ app.post("/addStudent", async (req, res) => {
 
 app.get("/", (req, res) => {
     res.send("Bus Concession API is Running...");
+});
+
+app.use((error, _req, res, next) => {
+    if (!error) {
+        return next();
+    }
+
+    return res.status(400).send({
+        message: error.message || "Request failed"
+    });
 });
 
 app.listen(PORT, "0.0.0.0", () => {

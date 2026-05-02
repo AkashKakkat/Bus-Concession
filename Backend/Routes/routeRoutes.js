@@ -1,10 +1,12 @@
 const express = require("express");
 const router = express.Router();
 const Route = require("../Models/routeModel");
+const authMiddleware = require("../Middleware/authMiddleware");
+const isAdmin = require("../Middleware/isAdmin");
 
 
 // create route (for admin use)
-router.post("/create",async (req,res) =>{
+router.post("/create", isAdmin, async (req,res) =>{
     try {
         const { from, to, price, baseFare, concessionPercent } = req.body;
         const normalizedBaseFare = Number(baseFare ?? price);
@@ -45,7 +47,7 @@ router.post("/create",async (req,res) =>{
 })
 
 // get all student ( for frontend dropdown)
-    router.get("/all", async (req,res)=>{
+    router.get("/all", authMiddleware, async (req,res)=>{
     const routes = await Route.find();    
 
     res.send(routes);

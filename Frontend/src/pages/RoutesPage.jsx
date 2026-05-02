@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
+import { useAuth } from "../context/AuthContext";
 import {
   getAllRoutes,
   getStudentProfile,
@@ -32,6 +33,7 @@ const formatCurrency = (value) =>
 
 function RoutesPage() {
   const navigate = useNavigate();
+  const { studentToken, clearSession } = useAuth();
   const [routes, setRoutes] = useState([]);
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [savedRouteId, setSavedRouteId] = useState("");
@@ -51,14 +53,12 @@ function RoutesPage() {
   const selectedRoutePreviewLabel = getRouteLabel(selectedRoutePreview);
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
+    clearSession("student");
     navigate("/login", { replace: true });
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
+    if (!studentToken) {
       navigate("/login", { replace: true });
       return;
     }
@@ -70,8 +70,8 @@ function RoutesPage() {
 
       try {
         const [routesData, profileData] = await Promise.all([
-          getAllRoutes(),
-          getStudentProfile({ token }),
+          getAllRoutes({ token: studentToken }),
+          getStudentProfile({ token: studentToken }),
         ]);
 
         const routeList = Array.isArray(routesData) ? routesData : [];
@@ -90,7 +90,7 @@ function RoutesPage() {
         }
       } catch (error) {
         if (error?.response?.status === 401) {
-          localStorage.removeItem("token");
+          clearSession("student");
           navigate("/login", { replace: true });
           return;
         }
@@ -103,16 +103,14 @@ function RoutesPage() {
     };
 
     fetchPageData();
-  }, [navigate]);
+  }, [clearSession, navigate, studentToken]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
 
-    const token = localStorage.getItem("token");
-
-    if (!token) {
+    if (!studentToken) {
       navigate("/login", { replace: true });
       return;
     }
@@ -127,7 +125,7 @@ function RoutesPage() {
     try {
       const data = await selectStudentRoute({
         routeId: selectedRouteId,
-        token,
+        token: studentToken,
       });
 
       setSuccessMessage(data.message || "Route selected successfully");
@@ -140,7 +138,7 @@ function RoutesPage() {
       }
     } catch (error) {
       if (error?.response?.status === 401) {
-        localStorage.removeItem("token");
+        clearSession("student");
         navigate("/login", { replace: true });
         return;
       }
@@ -390,6 +388,15 @@ function RoutesPage() {
                 Need to manage funds?{" "}
                 <Link className="font-semibold text-brand-600 hover:text-brand-700" to="/wallet">
                   Open wallet
+                </Link>
+              </p>
+              <p className="mt-2 text-sm text-slate-600">
+                Want to update your password?{" "}
+                <Link
+                  className="font-semibold text-brand-600 hover:text-brand-700"
+                  to="/change-password"
+                >
+                  Change password
                 </Link>
               </p>
             </div>

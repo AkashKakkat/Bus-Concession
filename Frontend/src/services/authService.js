@@ -11,7 +11,11 @@ export const verifyOtp = async (payload) => {
 };
 
 export const signupStudent = async (payload) => {
-  const response = await api.post("/auth/signUp", payload);
+  const response = await api.post("/auth/signUp", payload, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
   return response.data;
 };
 
@@ -20,12 +24,31 @@ export const loginStudent = async (payload) => {
   return response.data;
 };
 
+export const forgotStudentPassword = async (payload) => {
+  const response = await api.post("/auth/forgot-password", payload);
+  return response.data;
+};
+
+export const resetStudentPassword = async (payload) => {
+  const response = await api.post("/auth/reset-password", payload);
+  return response.data;
+};
+
+export const changeStudentPassword = async ({ token, ...payload }) => {
+  const response = await api.post("/auth/change-password", payload, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data;
+};
+
 export const loginConductor = async (payload) => {
   const response = await api.post("/conductor/login", payload);
   return response.data;
 };
 
-export const signupConductor = async (payload) => {
-  const response = await api.post("/conductor/signup", payload);
+export const loginAdmin = async (payload) => {
+  const response = await api.post("/admin/login", payload);
   return response.data;
 };

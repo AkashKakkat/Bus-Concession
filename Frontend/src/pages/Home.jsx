@@ -15,11 +15,12 @@ function Home() {
                 </span>
                 <div className="space-y-4">
                   <h1 className="max-w-md text-4xl font-semibold leading-tight">
-                    Role-based access for students and conductors in one clean frontend.
+                    Role-based access for students, conductors, and admins in one clean frontend.
                   </h1>
                   <p className="max-w-md text-sm leading-7 text-slate-300">
                     Students can log in and manage their route and pass flow. Conductors can
-                    log in separately and verify live passes from the conductor panel.
+                    log in separately and verify live passes from the conductor panel. Admins can
+                    manage routes, users, and transactions.
                   </p>
                 </div>
               </div>
@@ -40,7 +41,7 @@ function Home() {
                   </p>
                   <h2 className="text-3xl font-semibold text-slate-900">Choose your portal</h2>
                   <p className="text-sm leading-6 text-slate-600">
-                    Continue as a student or a conductor.
+                    Continue as a student, conductor, or admin.
                   </p>
                 </div>
 
@@ -57,6 +58,13 @@ function Home() {
                     to="/conductor-login"
                   >
                     Conductor Login
+                  </Link>
+
+                  <Link
+                    className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-200"
+                    to="/admin-login"
+                  >
+                    Admin Login
                   </Link>
                 </div>
               </div>

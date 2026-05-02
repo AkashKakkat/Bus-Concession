@@ -2,23 +2,25 @@ const Conductor = require("../Models/conductorModel");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
+const normalizeEmail = (email = "") => email.trim().toLowerCase();
 
 //  SIGNUP
 const conductorSignUp = async (req, res) => {
     try {
 
         console.log("conductor API HIT");
-        
+
 
         const { name, email, password, bus_no } = req.body;
+        const normalizedEmail = normalizeEmail(email);
 
-        if (!name || !email || !password || !bus_no) {
+        if (!name || !normalizedEmail || !password || !bus_no) {
             return res.status(400).send({
                 message: "All fields required"
             });
         }
 
-        const existing = await Conductor.findOne({ email });
+        const existing = await Conductor.findOne({ email: normalizedEmail });
 
         if (existing) {
             return res.status(409).send({
@@ -30,9 +32,10 @@ const conductorSignUp = async (req, res) => {
 
         const conductor = await Conductor.create({
             name,
-            email,
+            email: normalizedEmail,
             password: hashedPassword,
-            bus_no
+            bus_no,
+            role: "conductor"
         });
 
         res.status(201).send({
@@ -50,8 +53,9 @@ const conductorSignUp = async (req, res) => {
 const conductorLogin = async (req, res) => {
     try {
         const { email, password } = req.body;
+        const normalizedEmail = normalizeEmail(email);
 
-        const conductor = await Conductor.findOne({ email });
+        const conductor = await Conductor.findOne({ email: normalizedEmail });
 
         if (!conductor) {
             return res.status(404).send({
@@ -70,7 +74,8 @@ const conductorLogin = async (req, res) => {
         const token = jwt.sign(
             {
                 id: conductor._id,
-                role: "conductor" 
+                email: conductor.email,
+                role: conductor.role
             },
             process.env.JWT_SECRET,
             { expiresIn: "2h" }
@@ -78,7 +83,8 @@ const conductorLogin = async (req, res) => {
 
         res.send({
             message: "Login successful",
-            token
+            token,
+            role: conductor.role
         });
 
     } catch (err) {
