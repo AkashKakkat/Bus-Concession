@@ -152,7 +152,11 @@ function ConductorDashboard() {
       });
 
       setPaymentCompleted(true);
-      setPaymentMessage("Payment Successful ✅");
+      setPaymentMessage(
+        data.emailStatus?.sent
+          ? "Payment Successful. Confirmation email sent to student."
+          : `Payment Successful. ${data.emailStatus?.message || "Confirmation email was not sent."}`
+      );
       setResult((current) =>
         current
           ? {
@@ -164,6 +168,7 @@ function ConductorDashboard() {
                 amount: data.amount,
                 balance: data.balance,
                 paidAt: data.paidAt,
+                emailStatus: data.emailStatus,
               },
             }
           : current
@@ -410,6 +415,12 @@ function ConductorDashboard() {
                       </p>
                       <p>
                         <span className="font-semibold">Date:</span> {result.payment.paidAt}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Email:</span>{" "}
+                        {result.payment.emailStatus?.sent
+                          ? "Sent to student"
+                          : result.payment.emailStatus?.message || "Not sent"}
                       </p>
                     </div>
                   ) : null}

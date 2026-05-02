@@ -1,38 +1,41 @@
 const jwt = require("jsonwebtoken");
-const nodemailer = require("nodemailer");
 const Student = require("../Models/studentModel");
 const Transaction = require("../Models/transactionModel");
+const { sendTextMail } = require("../Utils/sendMail");
 const { normalizeFareDetails } = require("../Utils/fareCalculator");
 const { isSameRoutePoint } = require("../Utils/routeMatcher");
 
-const transporter = nodemailer.createTransport({
-    service: "gmail",
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
-    auth: {
-        user: process.env.EMAIL,
-        pass: process.env.EMAIL_PASS
-    }
-});
-
 const sendPaymentConfirmation = async ({ to, baseFare, concessionPercent, amount, route, date }) => {
     if (!process.env.EMAIL || !process.env.EMAIL_PASS || !to) {
-        return;
+        return {
+            sent: false,
+            message: "Payment email skipped because email service is not configured"
+        };
     }
 
-    await transporter.sendMail({
-        from: process.env.EMAIL,
+    await sendTextMail({
         to,
         subject: "Payment Successful",
         text: `Payment Successful\nBase Fare: Rs.${baseFare}\nConcession: ${concessionPercent}%\nFinal Amount: Rs.${amount}\nRoute: ${route.from} -> ${route.to}\nDate: ${date}`
     });
+
+    return {
+        sent: true,
+        message: "Payment confirmation email sent"
+    };
 };
 
-const sendPaymentConfirmationSafely = (paymentDetails) => {
-    sendPaymentConfirmation(paymentDetails).catch((error) => {
+const sendPaymentConfirmationSafely = async (paymentDetails) => {
+    try {
+        return await sendPaymentConfirmation(paymentDetails);
+    } catch (error) {
         console.error("Payment confirmation email failed:", error.message);
-    });
+
+        return {
+            sent: false,
+            message: error.message || "Payment confirmation email failed"
+        };
+    }
 };
 
 const completePayment = async (req, res) => {
@@ -95,7 +98,7 @@ const completePayment = async (req, res) => {
 
         const paymentDate = new Date().toLocaleString();
 
-        sendPaymentConfirmationSafely({
+        const emailStatus = await sendPaymentConfirmationSafely({
             to: student.email,
             baseFare: fareDetails.baseFare,
             concessionPercent: fareDetails.concessionPercent,
@@ -116,7 +119,8 @@ const completePayment = async (req, res) => {
             finalFare: fareDetails.finalFare,
             amount,
             balance: student.walletBalance,
-            paidAt: paymentDate
+            paidAt: paymentDate,
+            emailStatus
         });
     } catch (error) {
         if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
