@@ -7,6 +7,9 @@ const { isSameRoutePoint } = require("../Utils/routeMatcher");
 
 const transporter = nodemailer.createTransport({
     service: "gmail",
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
     auth: {
         user: process.env.EMAIL,
         pass: process.env.EMAIL_PASS
@@ -14,11 +17,21 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendPaymentConfirmation = async ({ to, baseFare, concessionPercent, amount, route, date }) => {
+    if (!process.env.EMAIL || !process.env.EMAIL_PASS || !to) {
+        return;
+    }
+
     await transporter.sendMail({
         from: process.env.EMAIL,
         to,
         subject: "Payment Successful",
         text: `Payment Successful\nBase Fare: Rs.${baseFare}\nConcession: ${concessionPercent}%\nFinal Amount: Rs.${amount}\nRoute: ${route.from} -> ${route.to}\nDate: ${date}`
+    });
+};
+
+const sendPaymentConfirmationSafely = (paymentDetails) => {
+    sendPaymentConfirmation(paymentDetails).catch((error) => {
+        console.error("Payment confirmation email failed:", error.message);
     });
 };
 
@@ -82,7 +95,7 @@ const completePayment = async (req, res) => {
 
         const paymentDate = new Date().toLocaleString();
 
-        await sendPaymentConfirmation({
+        sendPaymentConfirmationSafely({
             to: student.email,
             baseFare: fareDetails.baseFare,
             concessionPercent: fareDetails.concessionPercent,

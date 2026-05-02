@@ -128,6 +128,10 @@ function ConductorDashboard() {
   };
 
   const handleCompletePayment = async () => {
+    if (isPaying || paymentCompleted) {
+      return;
+    }
+
     if (!conductorToken) {
       navigate("/conductor-login", { replace: true });
       return;
@@ -382,7 +386,7 @@ function ConductorDashboard() {
                         type="button"
                         onClick={handleCompletePayment}
                         isLoading={isPaying}
-                        disabled={paymentCompleted}
+                        disabled={isPaying || paymentCompleted}
                       >
                         {paymentCompleted ? "Payment Completed" : "Complete Payment"}
                       </Button>
