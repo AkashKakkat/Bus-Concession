@@ -1,97 +1,72 @@
-const nodemailer = require("nodemailer");
-const dns = require("dns");
+const { google } = require("googleapis");
 require("../Config/loadEnv");
 
-const transporters = new Map();
-
-dns.setDefaultResultOrder?.("ipv4first");
+let gmailClient;
 
 const getMailConfig = () => {
     const user = process.env.EMAIL?.trim();
-    const pass = process.env.EMAIL_PASS?.replace(/\s+/g, "");
+    const clientId = process.env.GMAIL_CLIENT_ID?.trim();
+    const clientSecret = process.env.GMAIL_CLIENT_SECRET?.trim();
+    const refreshToken = process.env.GMAIL_REFRESH_TOKEN?.trim();
 
-    if (!user || !pass) {
-        throw new Error("Email service is not configured. Please set EMAIL and EMAIL_PASS.");
+    if (!user || !clientId || !clientSecret || !refreshToken) {
+        throw new Error(
+            "Email service is not configured. Please set EMAIL, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN."
+        );
     }
 
-    return { user, pass };
+    return { user, clientId, clientSecret, refreshToken };
 };
 
-const isTruthy = (value) => ["true", "1", "yes"].includes(String(value || "").toLowerCase());
-
-const getTransportOptions = () => {
-    const { user, pass } = getMailConfig();
-    const configuredHost = process.env.SMTP_HOST?.trim();
-    const configuredPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : null;
-    const configuredSecure = process.env.SMTP_SECURE ? isTruthy(process.env.SMTP_SECURE) : null;
-    const baseOptions = {
-        connectionTimeout: 20000,
-        greetingTimeout: 20000,
-        socketTimeout: 30000,
-        family: 4,
-        lookup: (hostname, options, callback) => {
-            dns.lookup(hostname, { ...options, family: 4 }, callback);
-        },
-        auth: {
-            user,
-            pass
-        }
-    };
-
-    const candidates = [];
-    const addCandidate = ({ host, port, secure }) => {
-        const key = `${host}:${port}:${secure}`;
-
-        if (candidates.some((candidate) => candidate.key === key)) {
-            return;
-        }
-
-        candidates.push({
-            key,
-            options: {
-                ...baseOptions,
-                host,
-                port,
-                secure,
-                requireTLS: !secure
-            }
-        });
-    };
-
-    addCandidate({
-        host: configuredHost || "smtp.gmail.com",
-        port: configuredPort || 587,
-        secure: configuredSecure ?? false
-    });
-
-    if (!configuredHost || configuredHost === "smtp.gmail.com") {
-        addCandidate({ host: "smtp.gmail.com", port: 465, secure: true });
-        addCandidate({ host: "smtp.gmail.com", port: 587, secure: false });
-    }
-
-    return candidates;
-};
-
-const getTransporter = (candidate) => {
-    if (!transporters.has(candidate.key)) {
-        transporters.set(candidate.key, nodemailer.createTransport(candidate.options));
-    }
-
-    return transporters.get(candidate.key);
-};
-
-const isNetworkError = (error) => (
-    ["ENETUNREACH", "ECONNECTION", "ETIMEDOUT", "ESOCKET", "ECONNRESET", "ECONNREFUSED"].includes(error.code)
+const encodeBase64Url = (value) => (
+    Buffer.from(value)
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "")
 );
 
-const toFriendlyMailError = (error) => {
-    if (error?.code === "EAUTH") {
-        return new Error("Email authentication failed. Please check EMAIL and EMAIL_PASS app password.");
+const cleanHeader = (value) => String(value || "").replace(/[\r\n]/g, " ").trim();
+
+const createRawMessage = ({ from, to, subject, text }) => {
+    const message = [
+        `From: ${cleanHeader(from)}`,
+        `To: ${cleanHeader(to)}`,
+        `Subject: ${cleanHeader(subject)}`,
+        "MIME-Version: 1.0",
+        'Content-Type: text/plain; charset="UTF-8"',
+        "",
+        text
+    ].join("\r\n");
+
+    return encodeBase64Url(message);
+};
+
+const getGmailClient = () => {
+    if (gmailClient) {
+        return gmailClient;
     }
 
-    if (isNetworkError(error)) {
+    const { clientId, clientSecret, refreshToken } = getMailConfig();
+    const auth = new google.auth.OAuth2(clientId, clientSecret);
+    auth.setCredentials({ refresh_token: refreshToken });
+
+    gmailClient = google.gmail({ version: "v1", auth });
+    return gmailClient;
+};
+
+const toFriendlyMailError = (error) => {
+    const reason = error?.errors?.[0]?.reason;
+
+    if ([401, 403].includes(error?.code) || ["authError", "forbidden"].includes(reason)) {
         return new Error(
-            "Email service is unreachable from this network. Please check internet/SMTP access and try again."
+            "Email authentication failed. Please check Gmail API OAuth credentials and refresh token."
+        );
+    }
+
+    if (["ENOTFOUND", "ECONNRESET", "ETIMEDOUT", "ECONNREFUSED"].includes(error?.code)) {
+        return new Error(
+            "Email service is unreachable from this network. Please check internet/Google API access and try again."
         );
     }
 
@@ -100,30 +75,23 @@ const toFriendlyMailError = (error) => {
 
 const sendTextMail = async ({ to, subject, text }) => {
     const { user } = getMailConfig();
-    const candidates = getTransportOptions();
-    let lastError;
+    const gmail = getGmailClient();
 
-    for (const candidate of candidates) {
-        try {
-            await getTransporter(candidate).sendMail({
-                from: user,
-                to,
-                subject,
-                text
-            });
-
-            return;
-        } catch (error) {
-            lastError = error;
-            transporters.delete(candidate.key);
-
-            if (!isNetworkError(error)) {
-                break;
+    try {
+        await gmail.users.messages.send({
+            userId: "me",
+            requestBody: {
+                raw: createRawMessage({
+                    from: user,
+                    to,
+                    subject,
+                    text
+                })
             }
-        }
+        });
+    } catch (error) {
+        throw toFriendlyMailError(error);
     }
-
-    throw toFriendlyMailError(lastError);
 };
 
 const sendOTP = async (to, otp) => {
