@@ -1,5 +1,6 @@
 const nodemailer = require("nodemailer");
 const dns = require("dns");
+const https = require("https");
 require("../Config/loadEnv");
 
 const transporters = new Map();
@@ -18,6 +19,105 @@ const getMailConfig = () => {
 };
 
 const isTruthy = (value) => ["true", "1", "yes"].includes(String(value || "").toLowerCase());
+
+const getSender = () => ({
+    email: process.env.EMAIL_FROM?.trim() || process.env.EMAIL?.trim(),
+    name: process.env.EMAIL_FROM_NAME?.trim() || "Bus Concession"
+});
+
+const requestJson = ({ hostname, path, headers, body }) => new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const request = https.request(
+        {
+            hostname,
+            path,
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Content-Length": Buffer.byteLength(payload),
+                ...headers
+            },
+            timeout: 30000
+        },
+        (response) => {
+            let responseBody = "";
+
+            response.setEncoding("utf8");
+            response.on("data", (chunk) => {
+                responseBody += chunk;
+            });
+            response.on("end", () => {
+                if (response.statusCode >= 200 && response.statusCode < 300) {
+                    resolve();
+                    return;
+                }
+
+                const error = new Error(`Email API failed with status ${response.statusCode}`);
+                error.responseBody = responseBody;
+                reject(error);
+            });
+        }
+    );
+
+    request.on("timeout", () => {
+        request.destroy(Object.assign(new Error("Email API request timed out"), { code: "ETIMEDOUT" }));
+    });
+    request.on("error", reject);
+    request.write(payload);
+    request.end();
+});
+
+const sendBrevoMail = async ({ to, subject, text }) => {
+    const apiKey = process.env.BREVO_API_KEY?.trim();
+
+    if (!apiKey) {
+        return false;
+    }
+
+    const sender = getSender();
+
+    await requestJson({
+        hostname: "api.brevo.com",
+        path: "/v3/smtp/email",
+        headers: {
+            "api-key": apiKey
+        },
+        body: {
+            sender,
+            to: [{ email: to }],
+            subject,
+            textContent: text
+        }
+    });
+
+    return true;
+};
+
+const sendResendMail = async ({ to, subject, text }) => {
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+
+    if (!apiKey) {
+        return false;
+    }
+
+    const sender = getSender();
+
+    await requestJson({
+        hostname: "api.resend.com",
+        path: "/emails",
+        headers: {
+            Authorization: `Bearer ${apiKey}`
+        },
+        body: {
+            from: `${sender.name} <${sender.email}>`,
+            to,
+            subject,
+            text
+        }
+    });
+
+    return true;
+};
 
 const getTransportOptions = () => {
     const { user, pass } = getMailConfig();
@@ -99,6 +199,18 @@ const sendTextMail = async ({ to, subject, text }) => {
     const candidates = getTransportOptions();
     let lastError;
 
+    try {
+        if (await sendBrevoMail({ to, subject, text })) {
+            return;
+        }
+
+        if (await sendResendMail({ to, subject, text })) {
+            return;
+        }
+    } catch (error) {
+        lastError = error;
+    }
+
     for (const candidate of candidates) {
         try {
             await getTransporter(candidate).sendMail({
@@ -113,7 +225,7 @@ const sendTextMail = async ({ to, subject, text }) => {
             lastError = error;
             transporters.delete(candidate.key);
 
-            if (!isNetworkError(error)) {
+            if (!isNetworkError(error) && !lastError) {
                 break;
             }
         }
