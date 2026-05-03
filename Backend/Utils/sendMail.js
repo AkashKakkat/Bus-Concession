@@ -7,11 +7,11 @@ const transporters = new Map();
 
 dns.setDefaultResultOrder?.("ipv4first");
 
-const getMailConfig = () => {
+const getMailConfig = ({ requirePassword = true } = {}) => {
     const user = process.env.EMAIL?.trim();
     const pass = process.env.EMAIL_PASS?.replace(/\s+/g, "");
 
-    if (!user || !pass) {
+    if (!user || (requirePassword && !pass)) {
         throw new Error("Email service is not configured. Please set EMAIL and EMAIL_PASS.");
     }
 
@@ -23,6 +23,12 @@ const isTruthy = (value) => ["true", "1", "yes"].includes(String(value || "").to
 const getSender = () => ({
     email: process.env.EMAIL_FROM?.trim() || process.env.EMAIL?.trim(),
     name: process.env.EMAIL_FROM_NAME?.trim() || "Bus Concession"
+});
+
+const getEmailProviderStatus = () => ({
+    brevo: Boolean(process.env.BREVO_API_KEY?.trim()),
+    resend: Boolean(process.env.RESEND_API_KEY?.trim()),
+    smtp: Boolean(process.env.EMAIL?.trim() && process.env.EMAIL_PASS?.trim())
 });
 
 const requestJson = ({ hostname, path, headers, body }) => new Promise((resolve, reject) => {
@@ -180,12 +186,18 @@ const isNetworkError = (error) => (
     ["ENETUNREACH", "ECONNECTION", "ETIMEDOUT", "ESOCKET", "ECONNRESET", "ECONNREFUSED"].includes(error.code)
 );
 
-const toFriendlyMailError = (error) => {
+const toFriendlyMailError = (error, { apiConfigured = false } = {}) => {
     if (error?.code === "EAUTH") {
         return new Error("Email authentication failed. Please check EMAIL and EMAIL_PASS app password.");
     }
 
     if (isNetworkError(error)) {
+        if (!apiConfigured) {
+            return new Error(
+                "Live server cannot reach SMTP. Add BREVO_API_KEY or RESEND_API_KEY in the backend environment, redeploy, and try again."
+            );
+        }
+
         return new Error(
             "Email service is unreachable from this network. Please check internet/SMTP access and try again."
         );
@@ -195,9 +207,10 @@ const toFriendlyMailError = (error) => {
 };
 
 const sendTextMail = async ({ to, subject, text }) => {
-    const { user } = getMailConfig();
-    const candidates = getTransportOptions();
-    let lastError;
+    getMailConfig({ requirePassword: false });
+    const providerStatus = getEmailProviderStatus();
+    let apiError;
+    let smtpError;
 
     try {
         if (await sendBrevoMail({ to, subject, text })) {
@@ -208,8 +221,19 @@ const sendTextMail = async ({ to, subject, text }) => {
             return;
         }
     } catch (error) {
-        lastError = error;
+        apiError = error;
     }
+
+    if (!providerStatus.smtp) {
+        if (apiError) {
+            throw new Error("Email API provider failed. Please check the API key and verified sender email.");
+        }
+
+        throw new Error("Email service is not configured. Please set BREVO_API_KEY or RESEND_API_KEY for the live backend.");
+    }
+
+    const { user } = getMailConfig();
+    const candidates = getTransportOptions();
 
     for (const candidate of candidates) {
         try {
@@ -222,16 +246,22 @@ const sendTextMail = async ({ to, subject, text }) => {
 
             return;
         } catch (error) {
-            lastError = error;
+            smtpError = error;
             transporters.delete(candidate.key);
 
-            if (!isNetworkError(error) && !lastError) {
+            if (!isNetworkError(error)) {
                 break;
             }
         }
     }
 
-    throw toFriendlyMailError(lastError);
+    if (apiError) {
+        throw new Error("Email API provider failed, and SMTP is also unavailable. Please check the API key and verified sender email.");
+    }
+
+    throw toFriendlyMailError(smtpError, {
+        apiConfigured: providerStatus.brevo || providerStatus.resend
+    });
 };
 
 const sendOTP = async (to, otp) => {
@@ -244,3 +274,4 @@ const sendOTP = async (to, otp) => {
 
 module.exports = sendOTP;
 module.exports.sendTextMail = sendTextMail;
+module.exports.getEmailProviderStatus = getEmailProviderStatus;

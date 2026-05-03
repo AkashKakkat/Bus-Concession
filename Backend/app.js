@@ -11,6 +11,7 @@ const routeRoutes = require("./Routes/routeRoutes");
 const walletRoutes = require("./Routes/walletRoutes");
 const paymentRoutes = require("./Routes/paymentRoutes");
 const ensureDefaultAdmin = require("./Utils/ensureDefaultAdmin");
+const { getEmailProviderStatus } = require("./Utils/sendMail");
 
 connect_db()
     .then(() => ensureDefaultAdmin())
@@ -81,6 +82,15 @@ app.post("/addStudent", async (req, res) => {
 
 app.get("/", (req, res) => {
     res.send("Bus Concession API is Running...");
+});
+
+app.get("/email/status", (_req, res) => {
+    const providers = getEmailProviderStatus();
+
+    res.send({
+        configured: providers.brevo || providers.resend || providers.smtp,
+        providers
+    });
 });
 
 app.use((error, _req, res, next) => {
