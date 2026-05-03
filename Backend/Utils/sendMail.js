@@ -59,6 +59,7 @@ const requestJson = ({ hostname, path, headers, body }) => new Promise((resolve,
                 }
 
                 const error = new Error(`Email API failed with status ${response.statusCode}`);
+                error.statusCode = response.statusCode;
                 error.responseBody = responseBody;
                 reject(error);
             });
@@ -97,6 +98,23 @@ const sendBrevoMail = async ({ to, subject, text }) => {
     });
 
     return true;
+};
+
+const getApiErrorMessage = (error) => {
+    const detail = String(error?.responseBody || "").slice(0, 500);
+
+    if (detail) {
+        console.error("Email API provider rejected request:", {
+            statusCode: error.statusCode,
+            detail
+        });
+    }
+
+    if (error?.statusCode === 401 || error?.statusCode === 403) {
+        return "Email API provider rejected the request. Please check the API key and verify the sender email/domain.";
+    }
+
+    return "Email API provider failed. Please check the API key, sender email, and provider account logs.";
 };
 
 const sendResendMail = async ({ to, subject, text }) => {
@@ -260,7 +278,7 @@ const sendTextMail = async ({ to, subject, text }) => {
     }
 
     if (apiError) {
-        throw new Error("Email API provider failed, and SMTP is also unavailable. Please check the API key and verified sender email.");
+        throw new Error(`${getApiErrorMessage(apiError)} SMTP is also unavailable from this live server.`);
     }
 
     throw toFriendlyMailError(smtpError, {
