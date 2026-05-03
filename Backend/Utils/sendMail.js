@@ -1,17 +1,16 @@
 const nodemailer = require("nodemailer");
 const dns = require("dns");
-const https = require("https");
 require("../Config/loadEnv");
 
 const transporters = new Map();
 
 dns.setDefaultResultOrder?.("ipv4first");
 
-const getMailConfig = ({ requirePassword = true } = {}) => {
+const getMailConfig = () => {
     const user = process.env.EMAIL?.trim();
     const pass = process.env.EMAIL_PASS?.replace(/\s+/g, "");
 
-    if (!user || (requirePassword && !pass)) {
+    if (!user || !pass) {
         throw new Error("Email service is not configured. Please set EMAIL and EMAIL_PASS.");
     }
 
@@ -19,129 +18,6 @@ const getMailConfig = ({ requirePassword = true } = {}) => {
 };
 
 const isTruthy = (value) => ["true", "1", "yes"].includes(String(value || "").toLowerCase());
-
-const getSender = () => ({
-    email: process.env.EMAIL_FROM?.trim() || process.env.EMAIL?.trim(),
-    name: process.env.EMAIL_FROM_NAME?.trim() || "Bus Concession"
-});
-
-const getEmailProviderStatus = () => ({
-    brevo: Boolean(process.env.BREVO_API_KEY?.trim()),
-    resend: Boolean(process.env.RESEND_API_KEY?.trim()),
-    smtp: Boolean(process.env.EMAIL?.trim() && process.env.EMAIL_PASS?.trim())
-});
-
-const requestJson = ({ hostname, path, headers, body }) => new Promise((resolve, reject) => {
-    const payload = JSON.stringify(body);
-    const request = https.request(
-        {
-            hostname,
-            path,
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Content-Length": Buffer.byteLength(payload),
-                ...headers
-            },
-            timeout: 30000
-        },
-        (response) => {
-            let responseBody = "";
-
-            response.setEncoding("utf8");
-            response.on("data", (chunk) => {
-                responseBody += chunk;
-            });
-            response.on("end", () => {
-                if (response.statusCode >= 200 && response.statusCode < 300) {
-                    resolve();
-                    return;
-                }
-
-                const error = new Error(`Email API failed with status ${response.statusCode}`);
-                error.statusCode = response.statusCode;
-                error.responseBody = responseBody;
-                reject(error);
-            });
-        }
-    );
-
-    request.on("timeout", () => {
-        request.destroy(Object.assign(new Error("Email API request timed out"), { code: "ETIMEDOUT" }));
-    });
-    request.on("error", reject);
-    request.write(payload);
-    request.end();
-});
-
-const sendBrevoMail = async ({ to, subject, text }) => {
-    const apiKey = process.env.BREVO_API_KEY?.trim();
-
-    if (!apiKey) {
-        return false;
-    }
-
-    const sender = getSender();
-
-    await requestJson({
-        hostname: "api.brevo.com",
-        path: "/v3/smtp/email",
-        headers: {
-            "api-key": apiKey
-        },
-        body: {
-            sender,
-            to: [{ email: to }],
-            subject,
-            textContent: text
-        }
-    });
-
-    return true;
-};
-
-const getApiErrorMessage = (error) => {
-    const detail = String(error?.responseBody || "").slice(0, 500);
-
-    if (detail) {
-        console.error("Email API provider rejected request:", {
-            statusCode: error.statusCode,
-            detail
-        });
-    }
-
-    if (error?.statusCode === 401 || error?.statusCode === 403) {
-        return "Email API provider rejected the request. Please check the API key and verify the sender email/domain.";
-    }
-
-    return "Email API provider failed. Please check the API key, sender email, and provider account logs.";
-};
-
-const sendResendMail = async ({ to, subject, text }) => {
-    const apiKey = process.env.RESEND_API_KEY?.trim();
-
-    if (!apiKey) {
-        return false;
-    }
-
-    const sender = getSender();
-
-    await requestJson({
-        hostname: "api.resend.com",
-        path: "/emails",
-        headers: {
-            Authorization: `Bearer ${apiKey}`
-        },
-        body: {
-            from: `${sender.name} <${sender.email}>`,
-            to,
-            subject,
-            text
-        }
-    });
-
-    return true;
-};
 
 const getTransportOptions = () => {
     const { user, pass } = getMailConfig();
@@ -208,18 +84,12 @@ const isNetworkError = (error) => (
     ["ENETUNREACH", "ECONNECTION", "ETIMEDOUT", "ESOCKET", "ECONNRESET", "ECONNREFUSED"].includes(error.code)
 );
 
-const toFriendlyMailError = (error, { apiConfigured = false } = {}) => {
+const toFriendlyMailError = (error) => {
     if (error?.code === "EAUTH") {
         return new Error("Email authentication failed. Please check EMAIL and EMAIL_PASS app password.");
     }
 
     if (isNetworkError(error)) {
-        if (!apiConfigured) {
-            return new Error(
-                "Live server cannot reach SMTP. Add BREVO_API_KEY or RESEND_API_KEY in the backend environment, redeploy, and try again."
-            );
-        }
-
         return new Error(
             "Email service is unreachable from this network. Please check internet/SMTP access and try again."
         );
@@ -229,33 +99,9 @@ const toFriendlyMailError = (error, { apiConfigured = false } = {}) => {
 };
 
 const sendTextMail = async ({ to, subject, text }) => {
-    getMailConfig({ requirePassword: false });
-    const providerStatus = getEmailProviderStatus();
-    let apiError;
-    let smtpError;
-
-    try {
-        if (await sendBrevoMail({ to, subject, text })) {
-            return;
-        }
-
-        if (await sendResendMail({ to, subject, text })) {
-            return;
-        }
-    } catch (error) {
-        apiError = error;
-    }
-
-    if (!providerStatus.smtp) {
-        if (apiError) {
-            throw new Error("Email API provider failed. Please check the API key and verified sender email.");
-        }
-
-        throw new Error("Email service is not configured. Please set BREVO_API_KEY or RESEND_API_KEY for the live backend.");
-    }
-
     const { user } = getMailConfig();
     const candidates = getTransportOptions();
+    let lastError;
 
     for (const candidate of candidates) {
         try {
@@ -268,7 +114,7 @@ const sendTextMail = async ({ to, subject, text }) => {
 
             return;
         } catch (error) {
-            smtpError = error;
+            lastError = error;
             transporters.delete(candidate.key);
 
             if (!isNetworkError(error)) {
@@ -277,13 +123,7 @@ const sendTextMail = async ({ to, subject, text }) => {
         }
     }
 
-    if (apiError) {
-        throw new Error(`${getApiErrorMessage(apiError)} SMTP is also unavailable from this live server.`);
-    }
-
-    throw toFriendlyMailError(smtpError, {
-        apiConfigured: providerStatus.brevo || providerStatus.resend
-    });
+    throw toFriendlyMailError(lastError);
 };
 
 const sendOTP = async (to, otp) => {
@@ -296,4 +136,3 @@ const sendOTP = async (to, otp) => {
 
 module.exports = sendOTP;
 module.exports.sendTextMail = sendTextMail;
-module.exports.getEmailProviderStatus = getEmailProviderStatus;
