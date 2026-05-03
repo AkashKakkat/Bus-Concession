@@ -134,6 +134,10 @@ const getTransportOptions = () => {
         connectionTimeout: 20000,
         greetingTimeout: 20000,
         socketTimeout: 30000,
+        family: 4,
+        lookup: (hostname, options, callback) => {
+            dns.lookup(hostname, { ...options, family: 4 }, callback);
+        },
         auth: {
             user,
             pass
