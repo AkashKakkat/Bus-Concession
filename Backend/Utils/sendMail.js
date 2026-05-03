@@ -2,7 +2,7 @@ const nodemailer = require("nodemailer");
 const dns = require("dns");
 require("../Config/loadEnv");
 
-let transporter;
+const transporters = new Map();
 
 dns.setDefaultResultOrder?.("ipv4first");
 
@@ -17,51 +17,109 @@ const getMailConfig = () => {
     return { user, pass };
 };
 
-const getTransporter = () => {
-    if (!transporter) {
-        const { user, pass } = getMailConfig();
+const isTruthy = (value) => ["true", "1", "yes"].includes(String(value || "").toLowerCase());
 
-        transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || "smtp.gmail.com",
-            port: Number(process.env.SMTP_PORT || 587),
-            secure: String(process.env.SMTP_SECURE || "false") === "true",
-            requireTLS: true,
-            connectionTimeout: 10000,
-            greetingTimeout: 10000,
-            socketTimeout: 10000,
-            family: 4,
-            lookup: (hostname, options, callback) => {
-                dns.lookup(hostname, { ...options, family: 4 }, callback);
-            },
-            auth: {
-                user,
-                pass
+const getTransportOptions = () => {
+    const { user, pass } = getMailConfig();
+    const configuredHost = process.env.SMTP_HOST?.trim();
+    const configuredPort = process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : null;
+    const configuredSecure = process.env.SMTP_SECURE ? isTruthy(process.env.SMTP_SECURE) : null;
+    const baseOptions = {
+        connectionTimeout: 20000,
+        greetingTimeout: 20000,
+        socketTimeout: 30000,
+        auth: {
+            user,
+            pass
+        }
+    };
+
+    const candidates = [];
+    const addCandidate = ({ host, port, secure }) => {
+        const key = `${host}:${port}:${secure}`;
+
+        if (candidates.some((candidate) => candidate.key === key)) {
+            return;
+        }
+
+        candidates.push({
+            key,
+            options: {
+                ...baseOptions,
+                host,
+                port,
+                secure,
+                requireTLS: !secure
             }
         });
+    };
+
+    addCandidate({
+        host: configuredHost || "smtp.gmail.com",
+        port: configuredPort || 587,
+        secure: configuredSecure ?? false
+    });
+
+    if (!configuredHost || configuredHost === "smtp.gmail.com") {
+        addCandidate({ host: "smtp.gmail.com", port: 465, secure: true });
+        addCandidate({ host: "smtp.gmail.com", port: 587, secure: false });
     }
 
-    return transporter;
+    return candidates;
+};
+
+const getTransporter = (candidate) => {
+    if (!transporters.has(candidate.key)) {
+        transporters.set(candidate.key, nodemailer.createTransport(candidate.options));
+    }
+
+    return transporters.get(candidate.key);
+};
+
+const isNetworkError = (error) => (
+    ["ENETUNREACH", "ECONNECTION", "ETIMEDOUT", "ESOCKET", "ECONNRESET", "ECONNREFUSED"].includes(error.code)
+);
+
+const toFriendlyMailError = (error) => {
+    if (error?.code === "EAUTH") {
+        return new Error("Email authentication failed. Please check EMAIL and EMAIL_PASS app password.");
+    }
+
+    if (isNetworkError(error)) {
+        return new Error(
+            "Email service is unreachable from this network. Please check internet/SMTP access and try again."
+        );
+    }
+
+    return error;
 };
 
 const sendTextMail = async ({ to, subject, text }) => {
     const { user } = getMailConfig();
+    const candidates = getTransportOptions();
+    let lastError;
 
-    try {
-        await getTransporter().sendMail({
-            from: user,
-            to,
-            subject,
-            text
-        });
-    } catch (error) {
-        if (["ENETUNREACH", "ECONNECTION", "ETIMEDOUT", "ESOCKET"].includes(error.code)) {
-            throw new Error(
-                "Email service is unreachable from this network. Please check internet/SMTP access and try again."
-            );
+    for (const candidate of candidates) {
+        try {
+            await getTransporter(candidate).sendMail({
+                from: user,
+                to,
+                subject,
+                text
+            });
+
+            return;
+        } catch (error) {
+            lastError = error;
+            transporters.delete(candidate.key);
+
+            if (!isNetworkError(error)) {
+                break;
+            }
         }
-
-        throw error;
     }
+
+    throw toFriendlyMailError(lastError);
 };
 
 const sendOTP = async (to, otp) => {
