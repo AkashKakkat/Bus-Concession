@@ -5,6 +5,7 @@ const authMiddleware = require("../Middleware/authMiddleware");
 const studentIdUpload = require("../Middleware/studentIdUpload");
 
 authRoute.post("/signUp", studentIdUpload.single("collegeIdCard"), controller.studentSignUp);
+authRoute.get("/approval-status", controller.getStudentApprovalStatus);
 authRoute.post("/login", controller.studentLogin);
 authRoute.post("/send-otp",controller.sendOtpController);
 authRoute.post("/verify-otp",controller.verifyOtpController);

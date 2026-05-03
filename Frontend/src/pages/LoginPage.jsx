@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import InputField from "../components/InputField";
@@ -14,9 +14,14 @@ const initialForm = {
 
 function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { setSession, studentToken, studentRole } = useAuth();
-  const [formData, setFormData] = useState(initialForm);
+  const [formData, setFormData] = useState({
+    ...initialForm,
+    email: location.state?.email || "",
+  });
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState(location.state?.message || "");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -37,6 +42,7 @@ function LoginPage() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setErrorMessage("");
+    setSuccessMessage("");
 
     if (!formData.email.trim() || !formData.password.trim()) {
       setErrorMessage("Please enter both email and password.");
@@ -115,6 +121,7 @@ function LoginPage() {
               </div>
 
               <div className="mt-6">
+                <AlertMessage type="success" message={successMessage} />
                 <AlertMessage type="error" message={errorMessage} />
               </div>
 

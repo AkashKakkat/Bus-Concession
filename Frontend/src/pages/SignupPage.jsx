@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import InputField from "../components/InputField";
 import StepBadge from "../components/StepBadge";
 import {
+  getStudentApprovalStatus,
   sendOtp,
   signupStudent,
   verifyOtp,
@@ -20,6 +22,7 @@ const initialSignupForm = {
 };
 
 function SignupPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [signupForm, setSignupForm] = useState(initialSignupForm);
@@ -27,6 +30,9 @@ function SignupPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState("");
   const [signupCompleted, setSignupCompleted] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState("");
+  const [approvalStatus, setApprovalStatus] = useState("");
+  const [isCheckingApproval, setIsCheckingApproval] = useState(false);
   const [globalMessage, setGlobalMessage] = useState({
     type: "",
     text: "",
@@ -52,8 +58,19 @@ function SignupPage() {
     setSubmitSuccess("");
   };
 
+  const goToLogin = () => {
+    navigate("/login", {
+      state: {
+        email: submittedEmail,
+        message: "Admin approved your registration. Please login to continue.",
+      },
+    });
+  };
+
   const handleVerifiedEmailSync = (nextEmail) => {
     setSignupCompleted(false);
+    setSubmittedEmail("");
+    setApprovalStatus("");
     setEmail(nextEmail);
     setSignupForm((current) => ({
       ...current,
@@ -154,17 +171,22 @@ function SignupPage() {
     setLoading((current) => ({ ...current, signup: true }));
 
     try {
+      const registeredEmail = email.trim();
       const payload = new FormData();
       payload.append("student_id", signupForm.student_id.trim());
       payload.append("name", signupForm.name.trim());
-      payload.append("email", email.trim());
+      payload.append("email", registeredEmail);
       payload.append("password", signupForm.password);
       payload.append("college", signupForm.college.trim());
       payload.append("collegeIdCard", signupForm.collegeIdCard);
 
       const data = await signupStudent(payload);
-      setSubmitSuccess(data.message || "Registration submitted for admin approval.");
+      setSubmitSuccess(
+        data.message || "Registration submitted for admin approval. We will keep checking the status here."
+      );
       setSignupCompleted(true);
+      setSubmittedEmail(registeredEmail);
+      setApprovalStatus(data.data?.verificationStatus || "pending");
       setOtp("");
       setOtpSent(false);
       setIsVerified(false);
@@ -176,6 +198,59 @@ function SignupPage() {
       setLoading((current) => ({ ...current, signup: false }));
     }
   };
+
+  useEffect(() => {
+    if (!signupCompleted || !submittedEmail || approvalStatus !== "pending") {
+      return undefined;
+    }
+
+    let isCancelled = false;
+
+    const checkApprovalStatus = async () => {
+      setIsCheckingApproval(true);
+
+      try {
+        const data = await getStudentApprovalStatus(submittedEmail);
+
+        if (isCancelled) {
+          return;
+        }
+
+        const nextStatus = data.verificationStatus || "pending";
+        setApprovalStatus(nextStatus);
+
+        if (nextStatus === "approved") {
+          setSubmitSuccess("Admin approved your registration. Please go to login.");
+          setGlobalMessage({ type: "", text: "" });
+        } else if (nextStatus === "rejected") {
+          setSubmitSuccess("");
+          setGlobalMessage({
+            type: "error",
+            text: "Your registration was not approved. Please contact the admin.",
+          });
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setGlobalMessage({
+            type: "info",
+            text: "Registration submitted. Waiting for admin approval.",
+          });
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsCheckingApproval(false);
+        }
+      }
+    };
+
+    checkApprovalStatus();
+    const intervalId = window.setInterval(checkApprovalStatus, 10000);
+
+    return () => {
+      isCancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [approvalStatus, signupCompleted, submittedEmail]);
 
   return (
     <div className="min-h-screen overflow-hidden bg-slate-950">
@@ -343,22 +418,38 @@ function SignupPage() {
                   OTP status:{" "}
                   <span
                     className={`font-semibold ${
-                      signupCompleted
+                      approvalStatus === "approved"
+                        ? "text-emerald-600"
+                        : signupCompleted
                         ? "text-brand-600"
                         : isVerified
                           ? "text-emerald-600"
                           : "text-amber-600"
                     }`}
                   >
-                    {signupCompleted
-                      ? "Waiting for admin approval"
+                    {approvalStatus === "approved"
+                      ? "Admin approved"
+                      : signupCompleted
+                        ? isCheckingApproval
+                          ? "Checking admin approval"
+                          : "Waiting for admin approval"
                       : isVerified
                         ? "Verified"
                         : "Not verified"}
                   </span>
                 </div>
 
-                <Button type="submit" isLoading={loading.signup} disabled={!signupEnabled}>
+                {approvalStatus === "approved" ? (
+                  <Button type="button" onClick={goToLogin}>
+                    Go to Login
+                  </Button>
+                ) : null}
+
+                <Button
+                  type="submit"
+                  isLoading={loading.signup}
+                  disabled={!signupEnabled || signupCompleted}
+                >
                   Create Account
                 </Button>
               </form>

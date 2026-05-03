@@ -135,7 +135,36 @@ const studentSignUp = async (req, res) => {
 
 }
 
+const getStudentApprovalStatus = async (req, res) => {
+    try {
+        const normalizedEmail = normalizeEmail(req.query.email);
 
+        if (!normalizedEmail) {
+            return res.status(400).send({
+                message: "Email is required"
+            });
+        }
+
+        const student = await studentModel
+            .findOne({ email: normalizedEmail })
+            .select("email verificationStatus");
+
+        if (!student) {
+            return res.status(404).send({
+                message: "Student registration not found"
+            });
+        }
+
+        return res.status(200).send({
+            email: student.email,
+            verificationStatus: student.verificationStatus || "approved"
+        });
+    } catch (err) {
+        return res.status(500).send({
+            message: err.message || "Failed to check approval status"
+        });
+    }
+};
 
 
 const studentLogin = async (req, res) => {
@@ -445,6 +474,7 @@ const verifyOtpController = (req, res) => {
 
 module.exports = {
     studentSignUp,
+    getStudentApprovalStatus,
     studentLogin,
     sendOtpController,
     verifyOtpController,

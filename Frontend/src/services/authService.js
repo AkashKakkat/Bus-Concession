@@ -19,6 +19,13 @@ export const signupStudent = async (payload) => {
   return response.data;
 };
 
+export const getStudentApprovalStatus = async (email) => {
+  const response = await api.get("/auth/approval-status", {
+    params: { email },
+  });
+  return response.data;
+};
+
 export const loginStudent = async (payload) => {
   const response = await api.post("/auth/login", payload);
   return response.data;
