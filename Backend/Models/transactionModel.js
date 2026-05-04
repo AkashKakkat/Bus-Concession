@@ -7,6 +7,10 @@ const transactionSchema = new mongoose.Schema(
             ref: "Student",
             required: true
         },
+        conductorId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Conductor"
+        },
         type: {
             type: String,
             enum: ["credit", "debit"],
@@ -20,6 +24,10 @@ const transactionSchema = new mongoose.Schema(
             type: String,
             required: true,
             trim: true
+        },
+        routeSnapshot: {
+            from: String,
+            to: String
         },
         date: {
             type: Date,

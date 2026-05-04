@@ -5,7 +5,7 @@ import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import InputField from "../components/InputField";
 import { useAuth } from "../context/AuthContext";
-import { completePayment } from "../services/paymentService";
+import { completePayment, getConductorPaymentHistory } from "../services/paymentService";
 import { verifyStudentPass } from "../services/routeService";
 import { getApiErrorMessage } from "../utils/getApiErrorMessage";
 
@@ -17,6 +17,13 @@ const initialForm = {
 
 const wait = (duration) => new Promise((resolve) => window.setTimeout(resolve, duration));
 
+const formatCurrency = (amount) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(Number(amount || 0));
+
 function ConductorDashboard() {
   const navigate = useNavigate();
   const { conductorToken, clearSession } = useAuth();
@@ -27,14 +34,44 @@ function ConductorDashboard() {
   const [paymentMessage, setPaymentMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const isPaymentButtonDisabled = isPaying || paymentCompleted || Boolean(result?.payment);
 
   useEffect(() => {
     if (!conductorToken) {
       navigate("/conductor-login", { replace: true });
+      return;
     }
-  }, [conductorToken, navigate]);
+
+    const loadPaymentHistory = async () => {
+      setIsLoadingHistory(true);
+
+      try {
+        const data = await getConductorPaymentHistory({ conductorToken });
+        setPaymentHistory(Array.isArray(data.transactions) ? data.transactions : []);
+      } catch (error) {
+        if (error?.response?.status === 401) {
+          clearSession("conductor");
+          navigate("/conductor-login", { replace: true });
+          return;
+        }
+
+        if (error?.response?.status === 404) {
+          setPaymentHistory([]);
+          return;
+        }
+
+        setErrorMessage(getApiErrorMessage(error, "Failed to load payment history."));
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    loadPaymentHistory();
+  }, [clearSession, conductorToken, navigate]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -128,7 +165,7 @@ function ConductorDashboard() {
   };
 
   const handleCompletePayment = async () => {
-    if (isPaying || paymentCompleted) {
+    if (isPaymentButtonDisabled) {
       return;
     }
 
@@ -152,6 +189,18 @@ function ConductorDashboard() {
       });
 
       setPaymentCompleted(true);
+      const completedPayment = data.transaction || {
+        _id: `${formData.token.trim()}-${Date.now()}`,
+        student: {
+          name: data.student?.name || data.student?.Name || result?.student?.name || result?.student?.Name,
+          email: data.student?.email || data.student?.Email || result?.student?.email || result?.student?.Email,
+        },
+        amount: data.amount,
+        description: "Bus Travel Payment",
+        route: data.route || result?.route || null,
+        date: new Date().toISOString(),
+      };
+      setPaymentHistory((current) => [completedPayment, ...current]);
       setPaymentMessage(
         data.emailStatus?.sent
           ? "Payment Successful. Confirmation email sent to student."
@@ -391,9 +440,9 @@ function ConductorDashboard() {
                         type="button"
                         onClick={handleCompletePayment}
                         isLoading={isPaying}
-                        disabled={isPaying || paymentCompleted}
+                        disabled={isPaymentButtonDisabled}
                       >
-                        {paymentCompleted ? "Payment Completed" : "Complete Payment"}
+                        {isPaymentButtonDisabled && !isPaying ? "Payment Completed" : "Complete Payment"}
                       </Button>
                     </div>
                   ) : null}
@@ -432,6 +481,64 @@ function ConductorDashboard() {
                   ) : null}
                 </div>
               ) : null}
+
+              <div className="mt-8 rounded-[1.75rem] border border-slate-200 bg-slate-50 p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Payment History</h3>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">
+                      Latest wallet payments completed from this conductor account.
+                    </p>
+                  </div>
+                  {isLoadingHistory ? (
+                    <span className="text-xs font-semibold text-slate-500">Loading...</span>
+                  ) : (
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                      {paymentHistory.length}
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {!isLoadingHistory && paymentHistory.length === 0 ? (
+                    <p className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-500">
+                      No payment history found.
+                    </p>
+                  ) : null}
+
+                  {paymentHistory.map((payment) => (
+                    <div
+                      key={payment._id}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {payment.student?.name || "Unknown student"}
+                          </p>
+                          <p className="mt-1 truncate text-xs text-slate-600">
+                            {payment.student?.email || "No email"}
+                          </p>
+                        </div>
+                        <p className="shrink-0 text-sm font-semibold text-rose-600">
+                          - {formatCurrency(payment.amount)}
+                        </p>
+                      </div>
+
+                      {payment.route?.from && payment.route?.to ? (
+                        <p className="mt-2 text-xs text-slate-600">
+                          {payment.route.from} {"->"} {payment.route.to}
+                        </p>
+                      ) : null}
+
+                      <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-500">
+                        <span>{payment.description || "Bus Travel Payment"}</span>
+                        <span>{payment.date ? new Date(payment.date).toLocaleString() : ""}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </section>
         </div>

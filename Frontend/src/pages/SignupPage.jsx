@@ -112,6 +112,11 @@ function SignupPage() {
     event.preventDefault();
     clearMessages();
 
+    if (isVerified) {
+      setMessage("success", "OTP already verified.");
+      return;
+    }
+
     if (!otpSent) {
       setMessage("error", "Request an OTP before trying to verify it.");
       return;
@@ -341,8 +346,12 @@ function SignupPage() {
                   maxLength={6}
                   disabled={!otpSent}
                 />
-                <Button type="submit" isLoading={loading.verifyOtp} disabled={!otpSent}>
-                  Verify OTP
+                <Button
+                  type="submit"
+                  isLoading={loading.verifyOtp}
+                  disabled={!otpSent || isVerified}
+                >
+                  {isVerified ? "OTP Verified" : "Verify OTP"}
                 </Button>
               </form>
 

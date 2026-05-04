@@ -218,6 +218,55 @@ function RoutesPage() {
                 ) : null}
               </div>
 
+              <Link
+                to="/wallet"
+                className="mt-6 flex items-center gap-4 rounded-2xl border border-brand-100 bg-brand-50 px-4 py-4 text-left transition hover:border-brand-200 hover:bg-brand-100 focus:outline-none focus:ring-4 focus:ring-brand-100"
+                aria-label="Open student wallet"
+              >
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-brand-600 shadow-sm">
+                  <svg
+                    aria-hidden="true"
+                    className="h-7 w-7"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M4 7.5C4 6.12 5.12 5 6.5 5H18C19.1 5 20 5.9 20 7V17C20 18.1 19.1 19 18 19H6.5C5.12 19 4 17.88 4 16.5V7.5Z"
+                      className="fill-current opacity-15"
+                    />
+                    <path
+                      d="M4 8H18.5C19.33 8 20 8.67 20 9.5V17C20 18.1 19.1 19 18 19H6.5C5.12 19 4 17.88 4 16.5V7.5C4 6.12 5.12 5 6.5 5H17"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M16 13.5H20V16.5H16.5C15.67 16.5 15 15.83 15 15C15 14.17 15.67 13.5 16.5 13.5"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M17 15H17.1"
+                      stroke="currentColor"
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-slate-900">
+                    Student Wallet
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-600">
+                    Add funds and view wallet history
+                  </span>
+                </span>
+              </Link>
+
               <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
                 <label className="block space-y-2">
                   <span className="text-sm font-medium text-slate-700">
@@ -384,12 +433,6 @@ function RoutesPage() {
                 </p>
               </div>
 
-              <p className="mt-6 text-sm text-slate-600">
-                Need to manage funds?{" "}
-                <Link className="font-semibold text-brand-600 hover:text-brand-700" to="/wallet">
-                  Open wallet
-                </Link>
-              </p>
               <p className="mt-2 text-sm text-slate-600">
                 Want to update your password?{" "}
                 <Link

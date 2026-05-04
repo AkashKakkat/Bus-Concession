@@ -89,11 +89,16 @@ const completePayment = async (req, res) => {
         student.walletBalance -= amount;
         await student.save();
 
-        await Transaction.create({
+        const transaction = await Transaction.create({
             studentId: student._id,
+            conductorId: req.conductor.id,
             type: "debit",
             amount,
-            description: "Bus Travel Payment"
+            description: "Bus Travel Payment",
+            routeSnapshot: {
+                from: student.route.from,
+                to: student.route.to
+            }
         });
 
         const paymentDate = new Date().toLocaleString();
@@ -120,6 +125,17 @@ const completePayment = async (req, res) => {
             amount,
             balance: student.walletBalance,
             paidAt: paymentDate,
+            transaction: {
+                _id: transaction._id,
+                student: {
+                    name: student.name,
+                    email: student.email
+                },
+                amount: transaction.amount,
+                description: transaction.description,
+                route: transaction.routeSnapshot,
+                date: transaction.date
+            },
             emailStatus
         });
     } catch (error) {
@@ -135,4 +151,36 @@ const completePayment = async (req, res) => {
     }
 };
 
-module.exports = { completePayment };
+const getConductorPaymentHistory = async (req, res) => {
+    try {
+        const transactions = await Transaction.find({
+            conductorId: req.conductor.id,
+            type: "debit"
+        })
+            .populate("studentId", "name email")
+            .sort({ date: -1, createdAt: -1 })
+            .lean();
+
+        return res.status(200).send({
+            transactions: transactions.map((transaction) => ({
+                _id: transaction._id,
+                student: transaction.studentId
+                    ? {
+                        name: transaction.studentId.name,
+                        email: transaction.studentId.email
+                    }
+                    : null,
+                amount: transaction.amount,
+                description: transaction.description,
+                route: transaction.routeSnapshot || null,
+                date: transaction.date || transaction.createdAt
+            }))
+        });
+    } catch (error) {
+        return res.status(500).send({
+            message: error.message || "Error fetching payment history"
+        });
+    }
+};
+
+module.exports = { completePayment, getConductorPaymentHistory };
