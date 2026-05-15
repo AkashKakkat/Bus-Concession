@@ -60,6 +60,11 @@ const initialTransactionFilters = {
   dateTo: "",
 };
 
+const cardClass =
+  "w-full min-w-0 self-start rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6";
+const listViewportClass = "space-y-3";
+const routeListViewportClass = "space-y-3";
+
 const formatMoney = (value) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -508,7 +513,11 @@ function AdminDashboard() {
         clearSelectedEntity();
       }
 
-      await Promise.all([fetchStudents(studentFilters), fetchTransactions(transactionFilters), fetchReports()]);
+      await Promise.all([
+        fetchStudents(studentFilters),
+        fetchTransactions(transactionFilters),
+        fetchReports(),
+      ]);
     } catch (error) {
       if (handleAdminSessionError(error)) {
         return;
@@ -671,11 +680,11 @@ function AdminDashboard() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-950 px-4 py-10 sm:px-6 lg:px-8">
+    <div className="relative bg-slate-950 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.16),_transparent_26%),radial-gradient(circle_at_bottom_right,_rgba(59,130,246,0.16),_transparent_28%)]" />
 
-      <div className="relative mx-auto max-w-7xl">
-        <div className="flex flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-panel backdrop-blur sm:p-8">
+      <div className="relative mx-auto w-full max-w-[1720px]">
+        <div className="flex flex-col gap-6 rounded-[2rem] border border-white/10 bg-white/5 p-5 shadow-panel backdrop-blur sm:p-6 lg:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-300">
@@ -704,7 +713,7 @@ function AdminDashboard() {
             <AlertMessage type="success" message={successMessage} />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid auto-rows-min items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-5 text-white">
               <p className="text-sm text-slate-300">Students</p>
               <p className="mt-3 text-3xl font-semibold">{reports?.overview?.studentCount ?? students.length}</p>
@@ -727,7 +736,552 @@ function AdminDashboard() {
             </div>
           </div>
 
-          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5">
+          <div className="grid auto-rows-min items-start gap-6 md:grid-cols-2 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+            <section className={cardClass}>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900">Route management</h2>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Add, edit, and remove routes with fare details.
+                  </p>
+                </div>
+
+                <div className="flex flex-col items-end gap-2">
+                  <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    {routes.length}
+                  </span>
+
+                  {editingRouteId ? (
+                    <button
+                      type="button"
+                      onClick={resetRouteForm}
+                      className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                    >
+                      Cancel edit
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={handleRouteSubmit}>
+                <InputField
+                  label="From"
+                  name="from"
+                  value={routeForm.from}
+                  onChange={handleRouteFormChange}
+                  placeholder="Kochi"
+                  disabled={isSubmittingRoute}
+                />
+                <InputField
+                  label="To"
+                  name="to"
+                  value={routeForm.to}
+                  onChange={handleRouteFormChange}
+                  placeholder="Thrissur"
+                  disabled={isSubmittingRoute}
+                />
+                <InputField
+                  label="Base Fare"
+                  name="baseFare"
+                  type="number"
+                  value={routeForm.baseFare}
+                  onChange={handleRouteFormChange}
+                  placeholder="120"
+                  disabled={isSubmittingRoute}
+                />
+                <InputField
+                  label="Concession %"
+                  name="concessionPercent"
+                  type="number"
+                  value={routeForm.concessionPercent}
+                  onChange={handleRouteFormChange}
+                  placeholder="50"
+                  disabled={isSubmittingRoute}
+                />
+
+                <div className="md:col-span-2">
+                  <Button type="submit" isLoading={isSubmittingRoute}>
+                    {editingRouteId ? "Update Route" : "Create Route"}
+                  </Button>
+                </div>
+              </form>
+
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
+                  <InputField
+                    label="Search Routes"
+                    name="q"
+                    value={routeFilters.q}
+                    onChange={handleRouteFilterChange}
+                    placeholder="Search by from or to"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleApplyRouteFilters}
+                    variant="secondary"
+                    className="md:self-end"
+                  >
+                    Search
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleResetRouteFilters}
+                    variant="secondary"
+                    className="md:self-end"
+                  >
+                    Reset
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <div className={routeListViewportClass}>
+                  {isLoading ? (
+                    <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      Loading routes...
+                    </p>
+                  ) : routes.length === 0 ? (
+                    <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      No routes found.
+                    </p>
+                  ) : (
+                    routes.map((route) => (
+                      <div
+                        key={route._id}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                      >
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="space-y-1">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {route.from} {"->"} {route.to}
+                            </p>
+                            <p className="text-sm text-slate-600">
+                              Base Fare: {formatMoney(route.baseFare ?? route.price)}
+                            </p>
+                            <p className="text-sm text-slate-600">
+                              Concession: {Number(route.concessionPercent ?? 0)}%
+                            </p>
+                          </div>
+
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <button
+                              type="button"
+                              onClick={() => handleRouteEdit(route)}
+                              className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRouteDelete(route._id)}
+                              disabled={deletingRouteId === route._id}
+                              className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {deletingRouteId === route._id ? "Deleting..." : "Delete"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <div className="grid min-w-0 auto-rows-min items-start gap-6">
+              <section className={cardClass}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">Students</h2>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Search, filter, view details, or remove a student account.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    {students.length}
+                  </span>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_0.8fr_auto_auto]">
+                    <InputField
+                      label="Search"
+                      name="q"
+                      value={studentFilters.q}
+                      onChange={handleStudentFilterChange}
+                      placeholder="Name, email, student ID"
+                    />
+                    <InputField
+                      label="College"
+                      name="college"
+                      value={studentFilters.college}
+                      onChange={handleStudentFilterChange}
+                      placeholder="Filter by college"
+                    />
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-slate-700">Status</span>
+                      <select
+                        name="verificationStatus"
+                        value={studentFilters.verificationStatus}
+                        onChange={handleStudentFilterChange}
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
+                      >
+                        <option value="">All</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                      </select>
+                    </label>
+                    <Button
+                      type="button"
+                      onClick={handleApplyStudentFilters}
+                      variant="secondary"
+                      className="md:self-end"
+                    >
+                      Search
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleResetStudentFilters}
+                      variant="secondary"
+                      className="md:self-end"
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <div className={listViewportClass}>
+                    {students.map((student) => (
+                      <div key={student._id} className="rounded-2xl bg-slate-50 px-4 py-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <p className="text-sm font-semibold text-slate-900">{student.name}</p>
+                          <span
+                            className={`w-fit rounded-full px-3 py-1 text-xs font-semibold capitalize ${getVerificationBadgeClass(
+                              student.verificationStatus
+                            )}`}
+                          >
+                            {student.verificationStatus || "approved"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">{student.email}</p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          Route: {student.route ? `${student.route.from} -> ${student.route.to}` : "Not selected"}
+                        </p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <button
+                            type="button"
+                            onClick={() => handleStudentDetails(student._id)}
+                            disabled={loadingDetailsId === student._id}
+                            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {loadingDetailsId === student._id ? "Loading..." : "View Details"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleStudentDelete(student._id)}
+                            disabled={deletingStudentId === student._id}
+                            className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {deletingStudentId === student._id ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {!isLoading && students.length === 0 ? (
+                      <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                        No students found.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </section>
+
+              <section className={cardClass}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">Conductors</h2>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Search, filter, view details, or remove a conductor account.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    {conductors.length}
+                  </span>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
+                    <InputField
+                      label="Search"
+                      name="q"
+                      value={conductorFilters.q}
+                      onChange={handleConductorFilterChange}
+                      placeholder="Name, email, bus number"
+                    />
+                    <InputField
+                      label="Bus Number"
+                      name="busNo"
+                      value={conductorFilters.busNo}
+                      onChange={handleConductorFilterChange}
+                      placeholder="Filter by bus number"
+                    />
+                    <Button
+                      type="button"
+                      onClick={handleApplyConductorFilters}
+                      variant="secondary"
+                      className="md:self-end"
+                    >
+                      Search
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleResetConductorFilters}
+                      variant="secondary"
+                      className="md:self-end"
+                    >
+                      Reset
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <div className={listViewportClass}>
+                    {conductors.map((conductor) => (
+                      <div key={conductor._id} className="rounded-2xl bg-slate-50 px-4 py-3">
+                        <p className="text-sm font-semibold text-slate-900">{conductor.name}</p>
+                        <p className="mt-1 text-xs text-slate-600">{conductor.email}</p>
+                        <p className="mt-1 text-xs text-slate-600">Bus No: {conductor.bus_no}</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <button
+                            type="button"
+                            onClick={() => handleConductorDetails(conductor._id)}
+                            disabled={loadingDetailsId === conductor._id}
+                            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {loadingDetailsId === conductor._id ? "Loading..." : "View Details"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleConductorDelete(conductor._id)}
+                            disabled={deletingConductorId === conductor._id}
+                            className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {deletingConductorId === conductor._id ? "Deleting..." : "Delete"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                    {!isLoading && conductors.length === 0 ? (
+                      <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                        No conductors found.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <section className={cardClass}>
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Create Conductor</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Add a conductor account and assign a bus number.
+              </p>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <form
+                className="grid auto-rows-min items-start gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto]"
+                onSubmit={handleConductorSubmit}
+              >
+                <InputField
+                  label="Conductor Name"
+                  name="name"
+                  value={conductorForm.name}
+                  onChange={handleConductorFormChange}
+                  placeholder="Enter conductor name"
+                  disabled={isSubmittingConductor}
+                />
+                <InputField
+                  label="Email"
+                  name="email"
+                  type="email"
+                  value={conductorForm.email}
+                  onChange={handleConductorFormChange}
+                  placeholder="conductor@example.com"
+                  disabled={isSubmittingConductor}
+                />
+                <InputField
+                  label="Password"
+                  name="password"
+                  type="password"
+                  value={conductorForm.password}
+                  onChange={handleConductorFormChange}
+                  placeholder="Enter password"
+                  disabled={isSubmittingConductor}
+                />
+                <InputField
+                  label="Bus Number"
+                  name="bus_no"
+                  value={conductorForm.bus_no}
+                  onChange={handleConductorFormChange}
+                  placeholder="Enter bus number"
+                  disabled={isSubmittingConductor}
+                />
+                <div className="md:col-span-2 xl:col-span-1 xl:self-end">
+                  <Button type="submit" isLoading={isSubmittingConductor}>
+                    Create Conductor
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <section className={cardClass}>
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">Transactions</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Filter payments and wallet entries by student, type, or date range.
+                </p>
+              </div>
+              <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                {transactions.length}
+              </span>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="grid auto-rows-min items-start gap-3 md:grid-cols-2 xl:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_auto_auto]">
+                <InputField
+                  label="Search"
+                  name="q"
+                  value={transactionFilters.q}
+                  onChange={handleTransactionFilterChange}
+                  placeholder="Student or description"
+                />
+                <label className="block space-y-2">
+                  <span className="text-sm font-medium text-slate-700">Type</span>
+                  <select
+                    name="type"
+                    value={transactionFilters.type}
+                    onChange={handleTransactionFilterChange}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
+                  >
+                    <option value="">All Types</option>
+                    <option value="credit">Credit</option>
+                    <option value="debit">Debit</option>
+                  </select>
+                </label>
+                <InputField
+                  label="Date From"
+                  name="dateFrom"
+                  type="date"
+                  value={transactionFilters.dateFrom}
+                  onChange={handleTransactionFilterChange}
+                />
+                <InputField
+                  label="Date To"
+                  name="dateTo"
+                  type="date"
+                  value={transactionFilters.dateTo}
+                  onChange={handleTransactionFilterChange}
+                />
+                <Button
+                  type="button"
+                  onClick={handleApplyTransactionFilters}
+                  variant="secondary"
+                  className="md:self-end"
+                >
+                  Search
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleResetTransactionFilters}
+                  variant="secondary"
+                  className="md:self-end"
+                >
+                  Reset
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-5">
+              <table className="block w-full md:table md:table-fixed md:divide-y md:divide-slate-200">
+                <thead className="hidden md:table-header-group">
+                  <tr className="text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    <th className="pb-3 pr-4">Student</th>
+                    <th className="pb-3 pr-4">Type</th>
+                    <th className="pb-3 pr-4">Amount</th>
+                    <th className="pb-3 pr-4">Description</th>
+                    <th className="pb-3">Date</th>
+                  </tr>
+                </thead>
+                <tbody className="block space-y-3 text-sm text-slate-700 md:table-row-group md:divide-y md:divide-slate-100 md:space-y-0">
+                  {transactions.map((transaction) => (
+                    <tr
+                      key={transaction._id}
+                      className="block rounded-2xl bg-slate-50 p-4 md:table-row md:rounded-none md:bg-transparent md:p-0"
+                    >
+                      <td className="block py-2 align-top md:table-cell md:py-3 md:pr-4">
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 md:hidden">
+                          Student
+                        </span>
+                        <p className="break-words font-semibold text-slate-900">
+                          {transaction.student?.name || "Unknown student"}
+                        </p>
+                        <p className="break-words text-xs text-slate-500">
+                          {transaction.student?.email || "No email"}
+                        </p>
+                      </td>
+                      <td className="block py-2 align-top md:table-cell md:py-3 md:pr-4">
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 md:hidden">
+                          Type
+                        </span>
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                            transaction.type === "credit"
+                              ? "bg-emerald-100 text-emerald-700"
+                              : "bg-rose-100 text-rose-700"
+                          }`}
+                        >
+                          {transaction.type}
+                        </span>
+                      </td>
+                      <td className="block break-words py-2 align-top md:table-cell md:py-3 md:pr-4">
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 md:hidden">
+                          Amount
+                        </span>
+                        {formatMoney(transaction.amount)}
+                      </td>
+                      <td className="block break-words py-2 align-top md:table-cell md:py-3 md:pr-4">
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 md:hidden">
+                          Description
+                        </span>
+                        {transaction.description}
+                      </td>
+                      <td className="block break-words py-2 align-top md:table-cell md:py-3">
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500 md:hidden">
+                          Date
+                        </span>
+                        {new Date(transaction.date || transaction.createdAt).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {!isLoading && transactions.length === 0 ? (
+                <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  No transactions found.
+                </p>
+              ) : null}
+            </div>
+          </section>
+
+          <section className={cardClass}>
             <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">Reports & Aggregation</h2>
@@ -744,7 +1298,7 @@ function AdminDashboard() {
               </button>
             </div>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <div className="mt-5 grid auto-rows-min items-start gap-4 md:grid-cols-3">
               <div className="rounded-2xl bg-emerald-50 px-5 py-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
                   Total Credits
@@ -774,7 +1328,7 @@ function AdminDashboard() {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-6 xl:grid-cols-2">
+            <div className="mt-6 grid auto-rows-min items-start gap-6 xl:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <h3 className="text-lg font-semibold text-slate-900">Monthly Transactions</h3>
                 <div className="mt-4 space-y-3">
@@ -832,471 +1386,6 @@ function AdminDashboard() {
                   )}
                 </div>
               </div>
-            </div>
-          </section>
-
-          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-            <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900">Route management</h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Add, edit, and remove routes with fare details.
-                  </p>
-                </div>
-
-                {editingRouteId ? (
-                  <button
-                    type="button"
-                    onClick={resetRouteForm}
-                    className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                  >
-                    Cancel edit
-                  </button>
-                ) : null}
-              </div>
-
-              <form className="mt-5 grid gap-4 md:grid-cols-2" onSubmit={handleRouteSubmit}>
-                <InputField
-                  label="From"
-                  name="from"
-                  value={routeForm.from}
-                  onChange={handleRouteFormChange}
-                  placeholder="Kochi"
-                  disabled={isSubmittingRoute}
-                />
-                <InputField
-                  label="To"
-                  name="to"
-                  value={routeForm.to}
-                  onChange={handleRouteFormChange}
-                  placeholder="Thrissur"
-                  disabled={isSubmittingRoute}
-                />
-                <InputField
-                  label="Base Fare"
-                  name="baseFare"
-                  type="number"
-                  value={routeForm.baseFare}
-                  onChange={handleRouteFormChange}
-                  placeholder="120"
-                  disabled={isSubmittingRoute}
-                />
-                <InputField
-                  label="Concession %"
-                  name="concessionPercent"
-                  type="number"
-                  value={routeForm.concessionPercent}
-                  onChange={handleRouteFormChange}
-                  placeholder="50"
-                  disabled={isSubmittingRoute}
-                />
-
-                <div className="md:col-span-2">
-                  <Button type="submit" isLoading={isSubmittingRoute}>
-                    {editingRouteId ? "Update Route" : "Create Route"}
-                  </Button>
-                </div>
-              </form>
-
-              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="grid gap-3 md:grid-cols-[1fr_auto_auto]">
-                  <InputField
-                    label="Search Routes"
-                    name="q"
-                    value={routeFilters.q}
-                    onChange={handleRouteFilterChange}
-                    placeholder="Search by from or to"
-                  />
-                  <Button type="button" onClick={handleApplyRouteFilters} variant="secondary">
-                    Search
-                  </Button>
-                  <Button type="button" onClick={handleResetRouteFilters} variant="secondary">
-                    Reset
-                  </Button>
-                </div>
-              </div>
-
-              <div className="mt-6 grid gap-3">
-                {isLoading ? (
-                  <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    Loading routes...
-                  </p>
-                ) : routes.length === 0 ? (
-                  <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    No routes found.
-                  </p>
-                ) : (
-                  routes.map((route) => (
-                    <div
-                      key={route._id}
-                      className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
-                    >
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="space-y-1">
-                          <p className="text-sm font-semibold text-slate-900">
-                            {route.from} {"->"} {route.to}
-                          </p>
-                          <p className="text-sm text-slate-600">
-                            Base Fare: {formatMoney(route.baseFare ?? route.price)}
-                          </p>
-                          <p className="text-sm text-slate-600">
-                            Concession: {Number(route.concessionPercent ?? 0)}%
-                          </p>
-                        </div>
-
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <button
-                            type="button"
-                            onClick={() => handleRouteEdit(route)}
-                            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRouteDelete(route._id)}
-                            disabled={deletingRouteId === route._id}
-                            className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {deletingRouteId === route._id ? "Deleting..." : "Delete"}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-
-            <div className="grid gap-6">
-              <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5">
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900">Create Conductor</h2>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Add a conductor account and assign a bus number.
-                  </p>
-                </div>
-
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <form className="grid gap-3 md:grid-cols-2" onSubmit={handleConductorSubmit}>
-                    <InputField
-                      label="Conductor Name"
-                      name="name"
-                      value={conductorForm.name}
-                      onChange={handleConductorFormChange}
-                      placeholder="Enter conductor name"
-                      disabled={isSubmittingConductor}
-                    />
-                    <InputField
-                      label="Email"
-                      name="email"
-                      type="email"
-                      value={conductorForm.email}
-                      onChange={handleConductorFormChange}
-                      placeholder="conductor@example.com"
-                      disabled={isSubmittingConductor}
-                    />
-                    <InputField
-                      label="Password"
-                      name="password"
-                      type="password"
-                      value={conductorForm.password}
-                      onChange={handleConductorFormChange}
-                      placeholder="Enter password"
-                      disabled={isSubmittingConductor}
-                    />
-                    <InputField
-                      label="Bus Number"
-                      name="bus_no"
-                      value={conductorForm.bus_no}
-                      onChange={handleConductorFormChange}
-                      placeholder="Enter bus number"
-                      disabled={isSubmittingConductor}
-                    />
-                    <div className="md:col-span-2">
-                      <Button type="submit" isLoading={isSubmittingConductor}>
-                        Create Conductor
-                      </Button>
-                    </div>
-                  </form>
-                </div>
-              </section>
-
-              <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-900">Students</h2>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Search, filter, view details, or remove a student account.
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                    {students.length}
-                  </span>
-                </div>
-
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_0.8fr_auto_auto]">
-                    <InputField
-                      label="Search"
-                      name="q"
-                      value={studentFilters.q}
-                      onChange={handleStudentFilterChange}
-                      placeholder="Name, email, student ID"
-                    />
-                    <InputField
-                      label="College"
-                      name="college"
-                      value={studentFilters.college}
-                      onChange={handleStudentFilterChange}
-                      placeholder="Filter by college"
-                    />
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-slate-700">Status</span>
-                      <select
-                        name="verificationStatus"
-                        value={studentFilters.verificationStatus}
-                        onChange={handleStudentFilterChange}
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
-                      >
-                        <option value="">All</option>
-                        <option value="pending">Pending</option>
-                        <option value="approved">Approved</option>
-                        <option value="rejected">Rejected</option>
-                      </select>
-                    </label>
-                    <Button type="button" onClick={handleApplyStudentFilters} variant="secondary">
-                      Search
-                    </Button>
-                    <Button type="button" onClick={handleResetStudentFilters} variant="secondary">
-                      Reset
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  {students.slice(0, 8).map((student) => (
-                    <div key={student._id} className="rounded-2xl bg-slate-50 px-4 py-3">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <p className="text-sm font-semibold text-slate-900">{student.name}</p>
-                        <span
-                          className={`w-fit rounded-full px-3 py-1 text-xs font-semibold capitalize ${getVerificationBadgeClass(
-                            student.verificationStatus
-                          )}`}
-                        >
-                          {student.verificationStatus || "approved"}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-600">{student.email}</p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        Route: {student.route ? `${student.route.from} -> ${student.route.to}` : "Not selected"}
-                      </p>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <button
-                          type="button"
-                          onClick={() => handleStudentDetails(student._id)}
-                          disabled={loadingDetailsId === student._id}
-                          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {loadingDetailsId === student._id ? "Loading..." : "View Details"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleStudentDelete(student._id)}
-                          disabled={deletingStudentId === student._id}
-                          className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {deletingStudentId === student._id ? "Deleting..." : "Delete"}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {!isLoading && students.length === 0 ? (
-                    <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                      No students found.
-                    </p>
-                  ) : null}
-                </div>
-              </section>
-
-              <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-900">Conductors</h2>
-                    <p className="mt-1 text-sm text-slate-600">
-                      Search, filter, view details, or remove a conductor account.
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                    {conductors.length}
-                  </span>
-                </div>
-
-                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
-                    <InputField
-                      label="Search"
-                      name="q"
-                      value={conductorFilters.q}
-                      onChange={handleConductorFilterChange}
-                      placeholder="Name, email, bus number"
-                    />
-                    <InputField
-                      label="Bus Number"
-                      name="busNo"
-                      value={conductorFilters.busNo}
-                      onChange={handleConductorFilterChange}
-                      placeholder="Filter by bus number"
-                    />
-                    <Button type="button" onClick={handleApplyConductorFilters} variant="secondary">
-                      Search
-                    </Button>
-                    <Button type="button" onClick={handleResetConductorFilters} variant="secondary">
-                      Reset
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  {conductors.slice(0, 8).map((conductor) => (
-                    <div key={conductor._id} className="rounded-2xl bg-slate-50 px-4 py-3">
-                      <p className="text-sm font-semibold text-slate-900">{conductor.name}</p>
-                      <p className="mt-1 text-xs text-slate-600">{conductor.email}</p>
-                      <p className="mt-1 text-xs text-slate-600">Bus No: {conductor.bus_no}</p>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <button
-                          type="button"
-                          onClick={() => handleConductorDetails(conductor._id)}
-                          disabled={loadingDetailsId === conductor._id}
-                          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {loadingDetailsId === conductor._id ? "Loading..." : "View Details"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleConductorDelete(conductor._id)}
-                          disabled={deletingConductorId === conductor._id}
-                          className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {deletingConductorId === conductor._id ? "Deleting..." : "Delete"}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                  {!isLoading && conductors.length === 0 ? (
-                    <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                      No conductors found.
-                    </p>
-                  ) : null}
-                </div>
-              </section>
-            </div>
-          </div>
-
-          <section className="rounded-[1.75rem] border border-slate-200 bg-white p-5">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">Transactions</h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  Filter payments and wallet entries by student, type, or date range.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr_auto_auto]">
-                <InputField
-                  label="Search"
-                  name="q"
-                  value={transactionFilters.q}
-                  onChange={handleTransactionFilterChange}
-                  placeholder="Student or description"
-                />
-                <label className="block space-y-2">
-                  <span className="text-sm font-medium text-slate-700">Type</span>
-                  <select
-                    name="type"
-                    value={transactionFilters.type}
-                    onChange={handleTransactionFilterChange}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100"
-                  >
-                    <option value="">All Types</option>
-                    <option value="credit">Credit</option>
-                    <option value="debit">Debit</option>
-                  </select>
-                </label>
-                <InputField
-                  label="Date From"
-                  name="dateFrom"
-                  type="date"
-                  value={transactionFilters.dateFrom}
-                  onChange={handleTransactionFilterChange}
-                />
-                <InputField
-                  label="Date To"
-                  name="dateTo"
-                  type="date"
-                  value={transactionFilters.dateTo}
-                  onChange={handleTransactionFilterChange}
-                />
-                <Button type="button" onClick={handleApplyTransactionFilters} variant="secondary">
-                  Search
-                </Button>
-                <Button type="button" onClick={handleResetTransactionFilters} variant="secondary">
-                  Reset
-                </Button>
-              </div>
-            </div>
-
-            <div className="mt-5 overflow-x-auto">
-              <table className="min-w-full divide-y divide-slate-200">
-                <thead>
-                  <tr className="text-left text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    <th className="pb-3 pr-4">Student</th>
-                    <th className="pb-3 pr-4">Type</th>
-                    <th className="pb-3 pr-4">Amount</th>
-                    <th className="pb-3 pr-4">Description</th>
-                    <th className="pb-3">Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
-                  {transactions.map((transaction) => (
-                    <tr key={transaction._id}>
-                      <td className="py-3 pr-4">
-                        <p className="font-semibold text-slate-900">
-                          {transaction.student?.name || "Unknown student"}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {transaction.student?.email || "No email"}
-                        </p>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            transaction.type === "credit"
-                              ? "bg-emerald-100 text-emerald-700"
-                              : "bg-rose-100 text-rose-700"
-                          }`}
-                        >
-                          {transaction.type}
-                        </span>
-                      </td>
-                      <td className="py-3 pr-4">{formatMoney(transaction.amount)}</td>
-                      <td className="py-3 pr-4">{transaction.description}</td>
-                      <td className="py-3">
-                        {new Date(transaction.date || transaction.createdAt).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {!isLoading && transactions.length === 0 ? (
-                <p className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  No transactions found.
-                </p>
-              ) : null}
             </div>
           </section>
         </div>

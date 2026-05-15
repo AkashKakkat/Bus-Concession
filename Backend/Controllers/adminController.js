@@ -56,6 +56,25 @@ const buildDateRangeFilter = (dateFrom, dateTo, fieldName = "createdAt") => {
     return Object.keys(range).length > 0 ? { [fieldName]: range } : {};
 };
 
+const validateDateRange = (dateFrom, dateTo) => {
+    const fromDate = dateFrom ? new Date(dateFrom) : null;
+    const toDate = dateTo ? new Date(dateTo) : null;
+
+    if (fromDate && Number.isNaN(fromDate.getTime())) {
+        return "dateFrom must be a valid date";
+    }
+
+    if (toDate && Number.isNaN(toDate.getTime())) {
+        return "dateTo must be a valid date";
+    }
+
+    if (fromDate && toDate && fromDate > toDate) {
+        return "dateFrom cannot be later than dateTo";
+    }
+
+    return null;
+};
+
 const getCollegeIdCardResponse = (student) => {
     if (!student.collegeIdCard?.filename) {
         return null;
@@ -143,6 +162,15 @@ const adminLogin = async (req, res) => {
 const getStudents = async (_req, res) => {
     try {
         const { q = "", college = "", routeId = "", verificationStatus = "", dateFrom, dateTo } = _req.query;
+
+        const dateError = validateDateRange(dateFrom, dateTo);
+
+        if (dateError) {
+            return res.status(400).send({
+                message: dateError
+            });
+        }
+
         const query = {
             ...buildDateRangeFilter(dateFrom, dateTo)
         };
@@ -166,6 +194,12 @@ const getStudents = async (_req, res) => {
         }
 
         if (verificationStatus.trim()) {
+            if (!["pending", "approved", "rejected"].includes(verificationStatus.trim())) {
+                return res.status(400).send({
+                    message: "verificationStatus must be pending, approved, or rejected"
+                });
+            }
+
             query.verificationStatus = verificationStatus.trim();
         }
 
@@ -340,6 +374,15 @@ const deleteStudent = async (req, res) => {
 const getConductors = async (_req, res) => {
     try {
         const { q = "", busNo = "", dateFrom, dateTo } = _req.query;
+
+        const dateError = validateDateRange(dateFrom, dateTo);
+
+        if (dateError) {
+            return res.status(400).send({
+                message: dateError
+            });
+        }
+
         const query = {
             ...buildDateRangeFilter(dateFrom, dateTo)
         };
@@ -450,6 +493,7 @@ const createConductor = async (req, res) => {
 const getRoutes = async (_req, res) => {
     try {
         const { q = "", from = "", to = "" } = _req.query;
+
         const query = {};
 
         if (q.trim()) {
@@ -465,7 +509,8 @@ const getRoutes = async (_req, res) => {
             query.to = buildRegex(to);
         }
 
-        const routes = await Route.find(query).sort({ from: 1, to: 1 });
+        const routes = await Route.find(query).sort({ createdAt: -1 });
+
         return res.status(200).send(routes);
     } catch (error) {
         return res.status(500).send({
@@ -565,11 +610,26 @@ const deleteRoute = async (req, res) => {
 const getTransactions = async (_req, res) => {
     try {
         const { q = "", type = "", dateFrom, dateTo } = _req.query;
+
+        const dateError = validateDateRange(dateFrom, dateTo);
+
+        if (dateError) {
+            return res.status(400).send({
+                message: dateError
+            });
+        }
+
         const matchStage = {
             ...buildDateRangeFilter(dateFrom, dateTo, "date")
         };
 
         if (type.trim()) {
+            if (!["credit", "debit"].includes(type.trim())) {
+                return res.status(400).send({
+                    message: "type must be credit or debit"
+                });
+            }
+
             matchStage.type = type.trim();
         }
 
@@ -623,7 +683,7 @@ const getTransactions = async (_req, res) => {
                     }
                 }
             },
-            { $sort: { date: -1, createdAt: -1 } }
+            { $sort: { createdAt: -1 } }
         );
 
         const transactions = await Transaction.aggregate(pipeline);
