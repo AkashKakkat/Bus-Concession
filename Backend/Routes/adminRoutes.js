@@ -7,15 +7,19 @@ adminRouter.post("/login", adminController.adminLogin);
 
 adminRouter.use(isAdmin);
 
+adminRouter.get("/profile", adminController.getAdminProfile);
+adminRouter.put("/password", adminController.updateAdminPassword);
 adminRouter.get("/students", adminController.getStudents);
 adminRouter.get("/students/:id", adminController.getStudentDetails);
 adminRouter.get("/students/:id/id-card", adminController.viewStudentIdCard);
+adminRouter.put("/students/:id", adminController.updateStudent);
 adminRouter.patch("/students/:id/approve", adminController.approveStudent);
 adminRouter.patch("/students/:id/reject", adminController.rejectStudent);
 adminRouter.delete("/students/:id", adminController.deleteStudent);
 adminRouter.get("/conductors", adminController.getConductors);
 adminRouter.post("/conductors", adminController.createConductor);
 adminRouter.get("/conductors/:id", adminController.getConductorDetails);
+adminRouter.put("/conductors/:id", adminController.updateConductor);
 adminRouter.delete("/conductors/:id", adminController.deleteConductor);
 adminRouter.get("/routes", adminController.getRoutes);
 adminRouter.post("/routes", adminController.createRoute);

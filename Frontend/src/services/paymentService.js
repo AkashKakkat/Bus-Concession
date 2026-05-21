@@ -1,5 +1,46 @@
 import api from "./api";
 
+export const createPaymentOrder = async ({ token, amount }) => {
+  const response = await api.post(
+    "/api/payment/create-order",
+    { amount },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return response.data;
+};
+
+export const verifyPayment = async ({ token, payment }) => {
+  const response = await api.post("/api/payment/verify", payment, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  return response.data;
+};
+
+export const markPaymentFailed = async ({ token, orderId, reason }) => {
+  const response = await api.post(
+    "/api/payment/failed",
+    {
+      razorpay_order_id: orderId,
+      reason,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return response.data;
+};
+
 export const completePayment = async ({
   conductorToken,
   token,

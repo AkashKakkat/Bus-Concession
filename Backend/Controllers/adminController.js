@@ -161,7 +161,16 @@ const adminLogin = async (req, res) => {
 
 const getStudents = async (_req, res) => {
     try {
-        const { q = "", college = "", routeId = "", verificationStatus = "", dateFrom, dateTo } = _req.query;
+        const {
+            q = "",
+            college = "",
+            routeId = "",
+            verificationStatus = "",
+            dateFrom,
+            dateTo,
+            page = 1,
+            limit = 10
+        } = _req.query;
 
         const dateError = validateDateRange(dateFrom, dateTo);
 
@@ -171,6 +180,8 @@ const getStudents = async (_req, res) => {
             });
         }
 
+        const parsedPage = Math.max(Number.parseInt(page, 10) || 1, 1);
+        const parsedLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 50);
         const query = {
             ...buildDateRangeFilter(dateFrom, dateTo)
         };
@@ -203,18 +214,34 @@ const getStudents = async (_req, res) => {
             query.verificationStatus = verificationStatus.trim();
         }
 
+        const totalStudents = await Student.countDocuments(query);
+        const totalPages = Math.max(Math.ceil(totalStudents / parsedLimit), 1);
+        const currentPage = Math.min(parsedPage, totalPages);
+        const skip = (currentPage - 1) * parsedLimit;
+
         const students = await Student.find(query)
             .select("-password")
-            .populate("route")
-            .sort({ createdAt: -1 });
+            .populate({
+                path: "route",
+                select: "from to price baseFare concessionPercent"
+            })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parsedLimit)
+            .lean();
 
         const response = students.map((student) => {
-            const item = student.toObject();
+            const item = { ...student };
             item.collegeIdCard = getCollegeIdCardResponse(student);
             return item;
         });
 
-        return res.status(200).send(response);
+        return res.status(200).send({
+            students: response,
+            totalStudents,
+            totalPages,
+            currentPage
+        });
     } catch (error) {
         return res.status(500).send({
             message: error.message || "Error fetching students"
@@ -241,6 +268,71 @@ const getStudentDetails = async (req, res) => {
     } catch (error) {
         return res.status(500).send({
             message: error.message || "Error fetching student details"
+        });
+    }
+};
+
+const updateStudent = async (req, res) => {
+    try {
+        const { name, email, student_id, college, verificationStatus } = req.body;
+        const normalizedEmail = normalizeEmail(email);
+
+        if (!name || !normalizedEmail || !student_id || !college) {
+            return res.status(400).send({
+                message: "Name, email, student ID, and college are required"
+            });
+        }
+
+        if (verificationStatus && !["pending", "approved", "rejected"].includes(verificationStatus)) {
+            return res.status(400).send({
+                message: "verificationStatus must be pending, approved, or rejected"
+            });
+        }
+
+        const duplicate = await Student.findOne({
+            _id: { $ne: req.params.id },
+            $or: [{ email: normalizedEmail }, { student_id: Number(student_id) }]
+        });
+
+        if (duplicate) {
+            return res.status(409).send({
+                message: "Another student already uses this email or student ID"
+            });
+        }
+
+        const update = {
+            name: name.trim(),
+            email: normalizedEmail,
+            student_id: Number(student_id),
+            college: college.trim()
+        };
+
+        if (verificationStatus) {
+            update.verificationStatus = verificationStatus;
+            update.verifiedAt = new Date();
+            update.verifiedBy = req.admin.id;
+        }
+
+        const student = await Student.findByIdAndUpdate(req.params.id, update, {
+            new: true,
+            runValidators: true
+        })
+            .select("-password")
+            .populate("route");
+
+        if (!student) {
+            return res.status(404).send({
+                message: "Student not found"
+            });
+        }
+
+        return res.status(200).send({
+            message: "Student updated successfully",
+            data: student
+        });
+    } catch (error) {
+        return res.status(500).send({
+            message: error.message || "Error updating student"
         });
     }
 };
@@ -373,7 +465,7 @@ const deleteStudent = async (req, res) => {
 
 const getConductors = async (_req, res) => {
     try {
-        const { q = "", busNo = "", dateFrom, dateTo } = _req.query;
+        const { q = "", busNo = "", dateFrom, dateTo, page = 1, limit = 10 } = _req.query;
 
         const dateError = validateDateRange(dateFrom, dateTo);
 
@@ -383,6 +475,8 @@ const getConductors = async (_req, res) => {
             });
         }
 
+        const parsedPage = Math.max(Number.parseInt(page, 10) || 1, 1);
+        const parsedLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 50);
         const query = {
             ...buildDateRangeFilter(dateFrom, dateTo)
         };
@@ -400,11 +494,24 @@ const getConductors = async (_req, res) => {
             query.bus_no = buildRegex(busNo);
         }
 
+        const totalConductors = await Conductor.countDocuments(query);
+        const totalPages = Math.max(Math.ceil(totalConductors / parsedLimit), 1);
+        const currentPage = Math.min(parsedPage, totalPages);
+        const skip = (currentPage - 1) * parsedLimit;
+
         const conductors = await Conductor.find(query)
             .select("-password")
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parsedLimit)
+            .lean();
 
-        return res.status(200).send(conductors);
+        return res.status(200).send({
+            conductors,
+            totalConductors,
+            totalPages,
+            currentPage
+        });
     } catch (error) {
         return res.status(500).send({
             message: error.message || "Error fetching conductors"
@@ -426,6 +533,60 @@ const getConductorDetails = async (req, res) => {
     } catch (error) {
         return res.status(500).send({
             message: error.message || "Error fetching conductor details"
+        });
+    }
+};
+
+const updateConductor = async (req, res) => {
+    try {
+        const { name, email, password, bus_no } = req.body;
+        const normalizedEmail = normalizeEmail(email);
+
+        if (!name || !normalizedEmail || !bus_no) {
+            return res.status(400).send({
+                message: "Name, email, and bus number are required"
+            });
+        }
+
+        const duplicate = await Conductor.findOne({
+            _id: { $ne: req.params.id },
+            email: normalizedEmail
+        });
+
+        if (duplicate) {
+            return res.status(409).send({
+                message: "Another conductor already uses this email"
+            });
+        }
+
+        const update = {
+            name: name.trim(),
+            email: normalizedEmail,
+            bus_no: bus_no.trim()
+        };
+
+        if (password) {
+            update.password = await bcrypt.hash(password, 10);
+        }
+
+        const conductor = await Conductor.findByIdAndUpdate(req.params.id, update, {
+            new: true,
+            runValidators: true
+        }).select("-password");
+
+        if (!conductor) {
+            return res.status(404).send({
+                message: "Conductor not found"
+            });
+        }
+
+        return res.status(200).send({
+            message: "Conductor updated successfully",
+            data: conductor
+        });
+    } catch (error) {
+        return res.status(500).send({
+            message: error.message || "Error updating conductor"
         });
     }
 };
@@ -492,7 +653,10 @@ const createConductor = async (req, res) => {
 
 const getRoutes = async (_req, res) => {
     try {
-        const { q = "", from = "", to = "" } = _req.query;
+        const { q = "", from = "", to = "", page, limit } = _req.query;
+        const shouldPaginate = page !== undefined || limit !== undefined;
+        const parsedPage = Math.max(Number.parseInt(page, 10) || 1, 1);
+        const parsedLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 50);
 
         const query = {};
 
@@ -509,9 +673,28 @@ const getRoutes = async (_req, res) => {
             query.to = buildRegex(to);
         }
 
-        const routes = await Route.find(query).sort({ createdAt: -1 });
+        if (!shouldPaginate) {
+            const routes = await Route.find(query).sort({ createdAt: -1 });
+            return res.status(200).send(routes);
+        }
 
-        return res.status(200).send(routes);
+        const totalRoutes = await Route.countDocuments(query);
+        const totalPages = Math.max(Math.ceil(totalRoutes / parsedLimit), 1);
+        const currentPage = Math.min(parsedPage, totalPages);
+        const skip = (currentPage - 1) * parsedLimit;
+
+        const routes = await Route.find(query)
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parsedLimit)
+            .lean();
+
+        return res.status(200).send({
+            routes,
+            totalRoutes,
+            totalPages,
+            currentPage
+        });
     } catch (error) {
         return res.status(500).send({
             message: error.message || "Error fetching routes"
@@ -609,7 +792,10 @@ const deleteRoute = async (req, res) => {
 
 const getTransactions = async (_req, res) => {
     try {
-        const { q = "", type = "", dateFrom, dateTo } = _req.query;
+        const { q = "", type = "", paymentStatus = "", dateFrom, dateTo, page, limit } = _req.query;
+        const shouldPaginate = page !== undefined || limit !== undefined;
+        const parsedPage = Math.max(Number.parseInt(page, 10) || 1, 1);
+        const parsedLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 50);
 
         const dateError = validateDateRange(dateFrom, dateTo);
 
@@ -633,13 +819,44 @@ const getTransactions = async (_req, res) => {
             matchStage.type = type.trim();
         }
 
+        if (paymentStatus.trim()) {
+            if (!["pending", "success", "failed", "cancelled"].includes(paymentStatus.trim())) {
+                return res.status(400).send({
+                    message: "paymentStatus must be pending, success, failed, or cancelled"
+                });
+            }
+
+            if (paymentStatus.trim() === "success") {
+                matchStage.$or = [
+                    { paymentStatus: "success" },
+                    { paymentStatus: { $exists: false } }
+                ];
+            } else {
+                matchStage.paymentStatus = paymentStatus.trim();
+            }
+        }
+
         const pipeline = [
             { $match: matchStage },
             {
                 $lookup: {
                     from: "students",
-                    localField: "studentId",
-                    foreignField: "_id",
+                    let: { studentRef: "$studentId" },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: { $eq: ["$_id", "$$studentRef"] }
+                            }
+                        },
+                        {
+                            $project: {
+                                name: 1,
+                                email: 1,
+                                student_id: 1,
+                                college: 1
+                            }
+                        }
+                    ],
                     as: "student"
                 }
             },
@@ -658,6 +875,9 @@ const getTransactions = async (_req, res) => {
                 $match: {
                     $or: [
                         { description: regex },
+                        { paymentStatus: regex },
+                        { razorpayPaymentId: regex },
+                        { razorpayOrderId: regex },
                         { "student.name": regex },
                         { "student.email": regex }
                     ]
@@ -671,6 +891,13 @@ const getTransactions = async (_req, res) => {
                     studentId: "$student._id",
                     type: 1,
                     amount: 1,
+                    currency: { $ifNull: ["$currency", "INR"] },
+                    paymentStatus: { $ifNull: ["$paymentStatus", "success"] },
+                    paymentProvider: { $ifNull: ["$paymentProvider", "wallet"] },
+                    razorpayOrderId: 1,
+                    razorpayPaymentId: 1,
+                    receipt: 1,
+                    purpose: 1,
                     description: 1,
                     date: 1,
                     createdAt: 1,
@@ -686,9 +913,63 @@ const getTransactions = async (_req, res) => {
             { $sort: { createdAt: -1 } }
         );
 
-        const transactions = await Transaction.aggregate(pipeline);
+        if (!shouldPaginate) {
+            const transactions = await Transaction.aggregate(pipeline);
+            return res.status(200).send(transactions);
+        }
 
-        return res.status(200).send(transactions);
+        const countPipeline = [...pipeline];
+        countPipeline.pop();
+        const skip = (parsedPage - 1) * parsedLimit;
+        const [result] = await Transaction.aggregate([
+            ...countPipeline,
+            {
+                $facet: {
+                    transactions: [
+                        { $sort: { createdAt: -1 } },
+                        { $skip: skip },
+                        { $limit: parsedLimit }
+                    ],
+                    metadata: [{ $count: "totalTransactions" }]
+                }
+            }
+        ]);
+
+        const transactions = result?.transactions || [];
+        const totalTransactions = result?.metadata?.[0]?.totalTransactions || 0;
+        const totalPages = Math.max(Math.ceil(totalTransactions / parsedLimit), 1);
+        const currentPage = Math.min(parsedPage, totalPages);
+
+        if (currentPage !== parsedPage && totalTransactions > 0) {
+            const correctedSkip = (currentPage - 1) * parsedLimit;
+            const [correctedResult] = await Transaction.aggregate([
+                ...countPipeline,
+                {
+                    $facet: {
+                        transactions: [
+                            { $sort: { createdAt: -1 } },
+                            { $skip: correctedSkip },
+                            { $limit: parsedLimit }
+                        ],
+                        metadata: [{ $count: "totalTransactions" }]
+                    }
+                }
+            ]);
+
+            return res.status(200).send({
+                transactions: correctedResult?.transactions || [],
+                totalTransactions,
+                totalPages,
+                currentPage
+            });
+        }
+
+        return res.status(200).send({
+            transactions,
+            totalTransactions,
+            totalPages,
+            currentPage
+        });
     } catch (error) {
         return res.status(500).send({
             message: error.message || "Error fetching transactions"
@@ -706,16 +987,39 @@ const getReports = async (_req, res) => {
 
         const transactionSummary = await Transaction.aggregate([
             {
+                $addFields: {
+                    normalizedPaymentStatus: { $ifNull: ["$paymentStatus", "success"] }
+                }
+            },
+            {
                 $group: {
                     _id: null,
                     totalCredits: {
                         $sum: {
-                            $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0]
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ["$type", "credit"] },
+                                        { $eq: ["$normalizedPaymentStatus", "success"] }
+                                    ]
+                                },
+                                "$amount",
+                                0
+                            ]
                         }
                     },
                     totalDebits: {
                         $sum: {
-                            $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0]
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ["$type", "debit"] },
+                                        { $eq: ["$normalizedPaymentStatus", "success"] }
+                                    ]
+                                },
+                                "$amount",
+                                0
+                            ]
                         }
                     },
                     transactionCount: { $sum: 1 }
@@ -724,6 +1028,11 @@ const getReports = async (_req, res) => {
         ]);
 
         const monthlyTransactions = await Transaction.aggregate([
+            {
+                $addFields: {
+                    normalizedPaymentStatus: { $ifNull: ["$paymentStatus", "success"] }
+                }
+            },
             {
                 $group: {
                     _id: {
@@ -734,12 +1043,30 @@ const getReports = async (_req, res) => {
                     },
                     credits: {
                         $sum: {
-                            $cond: [{ $eq: ["$type", "credit"] }, "$amount", 0]
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ["$type", "credit"] },
+                                        { $eq: ["$normalizedPaymentStatus", "success"] }
+                                    ]
+                                },
+                                "$amount",
+                                0
+                            ]
                         }
                     },
                     debits: {
                         $sum: {
-                            $cond: [{ $eq: ["$type", "debit"] }, "$amount", 0]
+                            $cond: [
+                                {
+                                    $and: [
+                                        { $eq: ["$type", "debit"] },
+                                        { $eq: ["$normalizedPaymentStatus", "success"] }
+                                    ]
+                                },
+                                "$amount",
+                                0
+                            ]
                         }
                     },
                     transactions: { $sum: 1 }
@@ -800,16 +1127,83 @@ const getReports = async (_req, res) => {
     }
 };
 
+const getAdminProfile = async (req, res) => {
+    try {
+        const admin = await Admin.findById(req.admin.id).select("-password");
+
+        if (!admin) {
+            return res.status(404).send({
+                message: "Admin not found"
+            });
+        }
+
+        return res.status(200).send(admin);
+    } catch (error) {
+        return res.status(500).send({
+            message: error.message || "Error fetching admin profile"
+        });
+    }
+};
+
+const updateAdminPassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).send({
+                message: "Current password and new password are required"
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).send({
+                message: "New password must be at least 6 characters"
+            });
+        }
+
+        const admin = await Admin.findById(req.admin.id);
+
+        if (!admin) {
+            return res.status(404).send({
+                message: "Admin not found"
+            });
+        }
+
+        const isPasswordValid = await bcrypt.compare(currentPassword, admin.password);
+
+        if (!isPasswordValid) {
+            return res.status(401).send({
+                message: "Current password is incorrect"
+            });
+        }
+
+        admin.password = await bcrypt.hash(newPassword, 10);
+        await admin.save();
+
+        return res.status(200).send({
+            message: "Password updated successfully"
+        });
+    } catch (error) {
+        return res.status(500).send({
+            message: error.message || "Error updating admin password"
+        });
+    }
+};
+
 module.exports = {
     adminLogin,
+    getAdminProfile,
+    updateAdminPassword,
     getStudents,
     getStudentDetails,
+    updateStudent,
     approveStudent,
     rejectStudent,
     viewStudentIdCard,
     deleteStudent,
     getConductors,
     getConductorDetails,
+    updateConductor,
     createConductor,
     deleteConductor,
     getRoutes,

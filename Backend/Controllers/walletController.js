@@ -28,45 +28,6 @@ const getWalletBalance = async (req, res) => {
     }
 };
 
-const addMoney = async (req, res) => {
-    try {
-        const amount = parseAmount(req.body.amount);
-
-        if (!validateAmount(amount)) {
-            return res.status(400).send({
-                message: "Amount must be greater than 0"
-            });
-        }
-
-        const student = await Student.findById(req.student.id);
-
-        if (!student) {
-            return res.status(404).send({
-                message: "Student not found"
-            });
-        }
-
-        student.walletBalance += amount;
-        await student.save();
-
-        await Transaction.create({
-            studentId: student._id,
-            type: "credit",
-            amount,
-            description: "Wallet top-up"
-        });
-
-        return res.status(200).send({
-            message: "Money added successfully",
-            balance: student.walletBalance
-        });
-    } catch (error) {
-        return res.status(500).send({
-            message: error.message || "Error adding money to wallet"
-        });
-    }
-};
-
 const payFromWallet = async (req, res) => {
     try {
         const amount = parseAmount(req.body.amount);
@@ -98,7 +59,9 @@ const payFromWallet = async (req, res) => {
             studentId: student._id,
             type: "debit",
             amount,
-            description: "Bus pass payment"
+            description: "Bus pass payment",
+            paymentStatus: "success",
+            paymentProvider: "wallet"
         });
 
         return res.status(200).send({
@@ -130,7 +93,6 @@ const getTransactions = async (req, res) => {
 
 module.exports = {
     getWalletBalance,
-    addMoney,
     payFromWallet,
     getTransactions
 };

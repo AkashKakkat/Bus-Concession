@@ -21,7 +21,7 @@ function AdminLogin() {
 
   useEffect(() => {
     if (adminToken && adminRole === "admin") {
-      navigate("/admin-dashboard", { replace: true });
+      navigate("/admin/dashboard", { replace: true });
     }
   }, [adminRole, adminToken, navigate]);
 
@@ -52,7 +52,7 @@ function AdminLogin() {
       });
 
       setSession("admin", data.token, data.role || "admin");
-      navigate("/admin-dashboard", { replace: true });
+      navigate("/admin/dashboard", { replace: true });
     } catch (error) {
       setErrorMessage(getApiErrorMessage(error, "Admin login failed."));
     } finally {

@@ -5,11 +5,16 @@ import Button from "../components/Button";
 import InputField from "../components/InputField";
 import { useAuth } from "../context/AuthContext";
 import {
-  addWalletMoney,
   getWalletBalance,
   getWalletTransactions,
 } from "../services/walletService";
+import {
+  createPaymentOrder,
+  markPaymentFailed,
+  verifyPayment,
+} from "../services/paymentService";
 import { getApiErrorMessage } from "../utils/getApiErrorMessage";
+import { loadRazorpay } from "../utils/loadRazorpay";
 
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-IN", {
@@ -95,18 +100,83 @@ function Wallet() {
     setIsAddingMoney(true);
 
     try {
-      const data = await addWalletMoney({
+      await loadRazorpay();
+
+      const order = await createPaymentOrder({
         token: studentToken,
         amount: parsedAmount,
       });
 
-      setBalance(data.balance || 0);
-      setAmount("");
-      setSuccessMessage(data.message || "Money added successfully.");
+      const razorpay = new window.Razorpay({
+        key: order.key,
+        amount: order.amount,
+        currency: order.currency,
+        name: "Bus Concession",
+        description: "Wallet top-up",
+        order_id: order.orderId,
+        handler: async (paymentResponse) => {
+          try {
+            const data = await verifyPayment({
+              token: studentToken,
+              payment: paymentResponse,
+            });
 
-      if (showTransactions) {
-        await fetchTransactions(studentToken);
-      }
+            setBalance(data.balance || 0);
+            setAmount("");
+            setSuccessMessage(data.message || "Money added successfully.");
+
+            if (showTransactions) {
+              await fetchTransactions(studentToken);
+            }
+          } catch (error) {
+            if (error?.response?.status === 401) {
+              clearSession("student");
+              navigate("/login", { replace: true });
+              return;
+            }
+
+            setErrorMessage(getApiErrorMessage(error, "Payment verification failed."));
+          } finally {
+            setIsAddingMoney(false);
+          }
+        },
+        modal: {
+          ondismiss: async () => {
+            try {
+              await markPaymentFailed({
+                token: studentToken,
+                orderId: order.orderId,
+                reason: "Payment cancelled",
+              });
+            } catch {
+              // The pending order will remain unpaid if cancellation status cannot be saved.
+            } finally {
+              setErrorMessage("Payment was cancelled.");
+              setIsAddingMoney(false);
+            }
+          },
+        },
+        theme: {
+          color: "#3056d3",
+        },
+      });
+
+      razorpay.on("payment.failed", async (response) => {
+        try {
+          await markPaymentFailed({
+            token: studentToken,
+            orderId: order.orderId,
+            reason: response?.error?.description || "Payment failed",
+          });
+        } catch {
+          // Failure is still shown to the student even if status sync fails.
+        } finally {
+          setErrorMessage(response?.error?.description || "Payment failed. Please try again.");
+          setIsAddingMoney(false);
+        }
+      });
+
+      razorpay.open();
     } catch (error) {
       if (error?.response?.status === 401) {
         clearSession("student");
@@ -115,7 +185,6 @@ function Wallet() {
       }
 
       setErrorMessage(getApiErrorMessage(error, "Failed to add money."));
-    } finally {
       setIsAddingMoney(false);
     }
   };
@@ -244,33 +313,45 @@ function Wallet() {
                       <p className="text-sm text-slate-500">No transactions found.</p>
                     ) : null}
 
-                    {transactions.map((transaction) => (
-                      <div
-                        key={transaction._id}
-                        className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p
-                              className={`text-base font-semibold ${
-                                transaction.type === "credit"
-                                  ? "text-emerald-600"
-                                  : "text-rose-600"
-                              }`}
-                            >
-                              {transaction.type === "credit" ? "+" : "-"}{" "}
-                              {formatCurrency(transaction.amount)}
-                            </p>
-                            <p className="mt-1 text-sm text-slate-700">
-                              {transaction.description}
+                    {transactions.map((transaction) => {
+                      const paymentStatus = transaction.paymentStatus || "success";
+                      const isSettled = paymentStatus === "success";
+
+                      return (
+                        <div
+                          key={transaction._id}
+                          className="rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p
+                                className={`text-base font-semibold ${
+                                  !isSettled
+                                    ? "text-amber-700"
+                                    : transaction.type === "credit"
+                                      ? "text-emerald-600"
+                                      : "text-rose-600"
+                                }`}
+                              >
+                                {isSettled ? (transaction.type === "credit" ? "+" : "-") : ""}{" "}
+                                {formatCurrency(transaction.amount)}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-700">
+                                {transaction.description}
+                              </p>
+                              {!isSettled ? (
+                                <p className="mt-1 text-xs font-semibold capitalize text-amber-700">
+                                  {paymentStatus}
+                                </p>
+                              ) : null}
+                            </div>
+                            <p className="text-xs text-slate-500">
+                              {new Date(transaction.date).toLocaleString()}
                             </p>
                           </div>
-                          <p className="text-xs text-slate-500">
-                            {new Date(transaction.date).toLocaleString()}
-                          </p>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ) : null}

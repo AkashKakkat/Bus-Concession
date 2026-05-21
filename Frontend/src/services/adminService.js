@@ -32,6 +32,11 @@ export const getAdminStudentDetails = async (token, studentId) => {
   return response.data;
 };
 
+export const updateAdminStudent = async (token, studentId, payload) => {
+  const response = await api.put(`/admin/students/${studentId}`, payload, getAdminHeaders(token));
+  return response.data;
+};
+
 export const deleteAdminStudent = async (token, studentId) => {
   const response = await api.delete(`/admin/students/${studentId}`, getAdminHeaders(token));
   return response.data;
@@ -57,6 +62,11 @@ export const getAdminStudentIdCard = async (token, studentId) => {
 
 export const getAdminConductorDetails = async (token, conductorId) => {
   const response = await api.get(`/admin/conductors/${conductorId}`, getAdminHeaders(token));
+  return response.data;
+};
+
+export const updateAdminConductor = async (token, conductorId, payload) => {
+  const response = await api.put(`/admin/conductors/${conductorId}`, payload, getAdminHeaders(token));
   return response.data;
 };
 
@@ -98,5 +108,15 @@ export const getAdminTransactions = async (token, params = {}) => {
 
 export const getAdminReports = async (token) => {
   const response = await api.get("/admin/reports", getAdminHeaders(token));
+  return response.data;
+};
+
+export const getAdminProfile = async (token) => {
+  const response = await api.get("/admin/profile", getAdminHeaders(token));
+  return response.data;
+};
+
+export const updateAdminPassword = async (token, payload) => {
+  const response = await api.put("/admin/password", payload, getAdminHeaders(token));
   return response.data;
 };

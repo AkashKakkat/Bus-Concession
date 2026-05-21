@@ -15,8 +15,6 @@ const initialForm = {
   currentTo: "",
 };
 
-const wait = (duration) => new Promise((resolve) => window.setTimeout(resolve, duration));
-
 const formatCurrency = (amount) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -179,8 +177,6 @@ function ConductorDashboard() {
     setIsPaying(true);
 
     try {
-      await wait(2000);
-
       const data = await completePayment({
         conductorToken,
         token: formData.token.trim(),
@@ -189,18 +185,9 @@ function ConductorDashboard() {
       });
 
       setPaymentCompleted(true);
-      const completedPayment = data.transaction || {
-        _id: `${formData.token.trim()}-${Date.now()}`,
-        student: {
-          name: data.student?.name || data.student?.Name || result?.student?.name || result?.student?.Name,
-          email: data.student?.email || data.student?.Email || result?.student?.email || result?.student?.Email,
-        },
-        amount: data.amount,
-        description: "Bus Travel Payment",
-        route: data.route || result?.route || null,
-        date: new Date().toISOString(),
-      };
-      setPaymentHistory((current) => [completedPayment, ...current]);
+      if (data.transaction) {
+        setPaymentHistory((current) => [data.transaction, ...current]);
+      }
       setPaymentMessage(
         data.emailStatus?.sent
           ? "Payment Successful. Confirmation email sent to student."

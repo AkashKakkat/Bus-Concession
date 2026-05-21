@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
-import AdminDashboard from "./pages/AdminDashboard";
 import AdminLogin from "./pages/AdminLogin";
 import ChangePassword from "./pages/ChangePassword";
 import ConductorDashboard from "./pages/ConductorDashboard";
@@ -12,6 +11,13 @@ import Login from "./pages/Login";
 import SignupPage from "./pages/SignupPage";
 import StudentPass from "./pages/StudentPass";
 import Wallet from "./pages/Wallet";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminOverview from "./pages/admin/Dashboard";
+import AdminStudents from "./pages/admin/Students";
+import AdminConductors from "./pages/admin/Conductors";
+import AdminRoutes from "./pages/admin/Routes";
+import AdminTransactions from "./pages/admin/Transactions";
+import AdminSettings from "./pages/admin/Settings";
 
 function App() {
   return (
@@ -23,8 +29,9 @@ function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
       <Route
-        path="/admin-dashboard"
+        path="/admin"
         element={
           <ProtectedRoute
             tokenKey="adminToken"
@@ -32,10 +39,18 @@ function App() {
             requiredRole="admin"
             redirectTo="/admin-login"
           >
-            <AdminDashboard />
+            <AdminLayout />
           </ProtectedRoute>
         }
-      />
+      >
+        <Route index element={<Navigate to="/admin/dashboard" replace />} />
+        <Route path="dashboard" element={<AdminOverview />} />
+        <Route path="students" element={<AdminStudents />} />
+        <Route path="conductors" element={<AdminConductors />} />
+        <Route path="routes" element={<AdminRoutes />} />
+        <Route path="transactions" element={<AdminTransactions />} />
+        <Route path="settings" element={<AdminSettings />} />
+      </Route>
       <Route
         path="/dashboard"
         element={

@@ -29,6 +29,51 @@ const transactionSchema = new mongoose.Schema(
             from: String,
             to: String
         },
+        currency: {
+            type: String,
+            default: "INR",
+            trim: true
+        },
+        paymentStatus: {
+            type: String,
+            enum: ["pending", "success", "failed", "cancelled"],
+            default: "success"
+        },
+        paymentProvider: {
+            type: String,
+            enum: ["wallet", "razorpay", "conductor"],
+            default: "wallet"
+        },
+        razorpayOrderId: {
+            type: String,
+            trim: true,
+            unique: true,
+            sparse: true
+        },
+        razorpayPaymentId: {
+            type: String,
+            trim: true,
+            unique: true,
+            sparse: true
+        },
+        razorpaySignature: {
+            type: String,
+            trim: true
+        },
+        receipt: {
+            type: String,
+            trim: true
+        },
+        purpose: {
+            type: String,
+            trim: true
+        },
+        paidAt: {
+            type: Date
+        },
+        failedAt: {
+            type: Date
+        },
         date: {
             type: Date,
             default: Date.now
@@ -38,5 +83,8 @@ const transactionSchema = new mongoose.Schema(
         timestamps: true
     }
 );
+
+transactionSchema.index({ studentId: 1, paymentStatus: 1, createdAt: -1 });
+transactionSchema.index({ razorpayOrderId: 1, paymentStatus: 1 });
 
 module.exports = mongoose.model("Transaction", transactionSchema);

@@ -58,6 +58,7 @@ app.use("/route", routeRoutes);
 app.use("/wallet", walletRoutes);
 
 app.use("/payment", paymentRoutes);
+app.use("/api/payment", paymentRoutes);
 
 
 
