@@ -3,6 +3,12 @@
 @tailwind utilities;
 
 @layer base {
+  html,
+  body,
+  #root {
+    @apply w-full overflow-x-hidden;
+  }
+
   body {
     @apply min-h-screen bg-slate-100 text-slate-900 antialiased;
   }

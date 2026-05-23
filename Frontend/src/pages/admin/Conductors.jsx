@@ -211,7 +211,7 @@ function Conductors() {
       <AlertMessage type="error" message={errorMessage} />
       <AlertMessage type="success" message={successMessage} />
 
-      <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
+      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <form onSubmit={submitConductor} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="font-semibold text-slate-950">{editingId ? "Edit conductor" : "Add conductor"}</h2>
           <input className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm" name="name" value={form.name} onChange={handleFormChange} placeholder="Name" />
@@ -230,18 +230,18 @@ function Conductors() {
           </div>
         </form>
 
-        <div className="space-y-4">
-          <form onSubmit={applyFilters} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_180px_auto_auto]">
-            <input className="rounded-md border border-slate-200 px-3 py-2 text-sm" name="q" value={filters.q} onChange={handleFilterChange} placeholder="Search name, email, bus" />
-            <input className="rounded-md border border-slate-200 px-3 py-2 text-sm" name="busNo" value={filters.busNo} onChange={handleFilterChange} placeholder="Bus no" />
+        <div className="min-w-0 space-y-4">
+          <form onSubmit={applyFilters} className="grid min-w-0 gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,180px)_auto_auto]">
+            <input className="min-w-0 rounded-md border border-slate-200 px-3 py-2 text-sm" name="q" value={filters.q} onChange={handleFilterChange} placeholder="Search name, email, bus" />
+            <input className="min-w-0 rounded-md border border-slate-200 px-3 py-2 text-sm" name="busNo" value={filters.busNo} onChange={handleFilterChange} placeholder="Bus no" />
             <button className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white">Search</button>
             <button type="button" onClick={resetFilters} className="rounded-md border border-slate-200 px-4 py-2 text-sm font-semibold">Reset</button>
           </form>
           {!hasLoadedOnce ? (
             <Loader label="Loading conductors..." />
           ) : (
-            <div className="space-y-4">
-              <div className="relative min-h-[560px]">
+            <div className="min-w-0 space-y-4">
+              <div className="relative min-h-[560px] min-w-0">
                 <Table columns={columns} rows={conductors} emptyMessage="No conductors found." />
                 {isLoading ? (
                   <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-white/70 backdrop-blur-[1px]">

@@ -1,13 +1,20 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { QrReader } from "react-qr-reader";
+import { toast } from "react-toastify";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import InputField from "../components/InputField";
 import { useAuth } from "../context/AuthContext";
-import { completePayment, getConductorPaymentHistory } from "../services/paymentService";
+import {
+  createConductorPaymentOrder,
+  getConductorPaymentHistory,
+  markConductorPaymentFailed,
+  verifyConductorPayment,
+} from "../services/paymentService";
 import { verifyStudentPass } from "../services/routeService";
 import { getApiErrorMessage } from "../utils/getApiErrorMessage";
+import { loadRazorpay } from "../utils/loadRazorpay";
 
 const initialForm = {
   token: "",
@@ -22,6 +29,21 @@ const formatCurrency = (amount) =>
     maximumFractionDigits: 0,
   }).format(Number(amount || 0));
 
+const shouldForceConductorLogout = (error) => {
+  const status = error?.response?.status;
+  const message = String(error?.response?.data?.message || "").toLowerCase();
+
+  if (status !== 401) {
+    return false;
+  }
+
+  return (
+    message.includes("token required") ||
+    message.includes("invalid token format") ||
+    message === "invalid token"
+  );
+};
+
 function ConductorDashboard() {
   const navigate = useNavigate();
   const { conductorToken, clearSession } = useAuth();
@@ -29,14 +51,18 @@ function ConductorDashboard() {
   const [result, setResult] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [cameraMessage, setCameraMessage] = useState("");
-  const [paymentMessage, setPaymentMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isPaying, setIsPaying] = useState(false);
+  const [isRazorpayPaying, setIsRazorpayPaying] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [paymentCompleted, setPaymentCompleted] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState([]);
-  const isPaymentButtonDisabled = isPaying || paymentCompleted || Boolean(result?.payment);
+  const [activeRazorpayOrderId, setActiveRazorpayOrderId] = useState("");
+  const isPaymentButtonDisabled =
+    isRazorpayPaying ||
+    paymentCompleted ||
+    Boolean(result?.payment) ||
+    Boolean(activeRazorpayOrderId);
 
   useEffect(() => {
     if (!conductorToken) {
@@ -51,7 +77,7 @@ function ConductorDashboard() {
         const data = await getConductorPaymentHistory({ conductorToken });
         setPaymentHistory(Array.isArray(data.transactions) ? data.transactions : []);
       } catch (error) {
-        if (error?.response?.status === 401) {
+        if (shouldForceConductorLogout(error)) {
           clearSession("conductor");
           navigate("/conductor-login", { replace: true });
           return;
@@ -70,6 +96,41 @@ function ConductorDashboard() {
 
     loadPaymentHistory();
   }, [clearSession, conductorToken, navigate]);
+
+  const prependPaymentHistory = (transaction) => {
+    if (!transaction?._id) {
+      return;
+    }
+
+    setPaymentHistory((current) => {
+      const withoutDuplicate = current.filter((item) => item._id !== transaction._id);
+      return [transaction, ...withoutDuplicate];
+    });
+  };
+
+  const applyPaymentResult = (data) => {
+    if (data.transaction) {
+      prependPaymentHistory(data.transaction);
+    }
+
+    setResult((current) =>
+      current
+        ? {
+            ...current,
+            baseFare: data.baseFare,
+            concessionPercent: data.concessionPercent,
+            finalFare: data.finalFare,
+            payment: {
+              amount: data.amount,
+              paidAt: data.paidAt,
+              paymentProvider: data.transaction?.paymentProvider || "razorpay",
+              paymentStatus: data.transaction?.paymentStatus || "success",
+              razorpayPaymentId: data.transaction?.razorpayPaymentId || null,
+            },
+          }
+        : current
+    );
+  };
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -109,9 +170,10 @@ function ConductorDashboard() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setErrorMessage("");
-    setPaymentMessage("");
     setResult(null);
     setPaymentCompleted(false);
+    setIsRazorpayPaying(false);
+    setActiveRazorpayOrderId("");
 
     if (!formData.token.trim() || !formData.currentFrom.trim() || !formData.currentTo.trim()) {
       setErrorMessage("Please enter the QR token, current from, and current to.");
@@ -144,7 +206,7 @@ function ConductorDashboard() {
       });
       setCameraMessage("");
     } catch (error) {
-      if (error?.response?.status === 401) {
+      if (shouldForceConductorLogout(error)) {
         clearSession("conductor");
         navigate("/conductor-login", { replace: true });
         return;
@@ -162,8 +224,13 @@ function ConductorDashboard() {
     }
   };
 
-  const handleCompletePayment = async () => {
+  const handleRazorpayPayment = async () => {
     if (isPaymentButtonDisabled) {
+      return;
+    }
+
+    if (activeRazorpayOrderId) {
+      setErrorMessage("A Razorpay payment is already in progress.");
       return;
     }
 
@@ -173,53 +240,115 @@ function ConductorDashboard() {
     }
 
     setErrorMessage("");
-    setPaymentMessage("Processing Payment...");
-    setIsPaying(true);
+    setIsRazorpayPaying(true);
 
     try {
-      const data = await completePayment({
+      await loadRazorpay();
+
+      const order = await createConductorPaymentOrder({
         conductorToken,
         token: formData.token.trim(),
         currentFrom: formData.currentFrom.trim(),
         currentTo: formData.currentTo.trim(),
       });
+      setActiveRazorpayOrderId(order.orderId || "");
 
-      setPaymentCompleted(true);
-      if (data.transaction) {
-        setPaymentHistory((current) => [data.transaction, ...current]);
-      }
-      setPaymentMessage(
-        data.emailStatus?.sent
-          ? "Payment Successful. Confirmation email sent to student."
-          : `Payment Successful. ${data.emailStatus?.message || "Confirmation email was not sent."}`
-      );
-      setResult((current) =>
-        current
-          ? {
-              ...current,
-              baseFare: data.baseFare,
-              concessionPercent: data.concessionPercent,
-              finalFare: data.finalFare,
+      const razorpay = new window.Razorpay({
+        key: order.key,
+        amount: order.amount,
+        currency: order.currency,
+        name: "Bus Concession",
+        description: "Bus Travel Payment",
+        order_id: order.orderId,
+        handler: async (paymentResponse) => {
+          try {
+            const data = await verifyConductorPayment({
+              conductorToken,
               payment: {
-                amount: data.amount,
-                balance: data.balance,
-                paidAt: data.paidAt,
-                emailStatus: data.emailStatus,
+                ...paymentResponse,
+                token: formData.token.trim(),
+                currentFrom: formData.currentFrom.trim(),
+                currentTo: formData.currentTo.trim(),
               },
+            });
+
+            setPaymentCompleted(true);
+            applyPaymentResult(data);
+            toast.success("Razorpay payment successful.");
+          } catch (error) {
+            if (shouldForceConductorLogout(error)) {
+              clearSession("conductor");
+              navigate("/conductor-login", { replace: true });
+              return;
             }
-          : current
-      );
+
+            const message = getApiErrorMessage(error, "Payment verification failed.");
+            setErrorMessage(message);
+          } finally {
+            setIsRazorpayPaying(false);
+            setActiveRazorpayOrderId("");
+          }
+        },
+        modal: {
+          ondismiss: async () => {
+            try {
+              await markConductorPaymentFailed({
+                conductorToken,
+                orderId: order.orderId,
+                reason: "Payment cancelled",
+              });
+            } catch {
+              // Keep UX smooth even if cancellation sync fails.
+            } finally {
+              setErrorMessage("Razorpay payment was cancelled.");
+              toast.info("Razorpay payment was cancelled.");
+              setIsRazorpayPaying(false);
+              setActiveRazorpayOrderId("");
+            }
+          },
+        },
+        theme: {
+          color: "#3056d3",
+        },
+      });
+
+      razorpay.on("payment.failed", async (response) => {
+        try {
+          await markConductorPaymentFailed({
+            conductorToken,
+            orderId: order.orderId,
+            reason: response?.error?.description || "Payment failed",
+          });
+        } catch {
+          // Show failure even if backend failure-sync fails.
+        } finally {
+          const message =
+            response?.error?.description || "Razorpay payment failed. Please try again.";
+          setErrorMessage(message);
+          setIsRazorpayPaying(false);
+          setActiveRazorpayOrderId("");
+        }
+      });
+
+      razorpay.open();
+      setIsRazorpayPaying(false);
+
+      window.setTimeout(() => {
+        setActiveRazorpayOrderId((current) => (current === order.orderId ? "" : current));
+      }, 30000);
     } catch (error) {
-      if (error?.response?.status === 401) {
+      if (shouldForceConductorLogout(error)) {
+        setIsRazorpayPaying(false);
+        setActiveRazorpayOrderId("");
         clearSession("conductor");
         navigate("/conductor-login", { replace: true });
         return;
       }
 
-      setPaymentMessage("");
-      setErrorMessage(getApiErrorMessage(error, "Payment failed."));
-    } finally {
-      setIsPaying(false);
+      const message = getApiErrorMessage(error, "Unable to start Razorpay payment.");
+      setErrorMessage(message);
+      setIsRazorpayPaying(false);
+      setActiveRazorpayOrderId("");
     }
   };
 
@@ -245,7 +374,7 @@ function ConductorDashboard() {
                 </h1>
                 <p className="max-w-sm text-sm leading-7 text-slate-300">
                   Scan or paste the QR token, verify the route, review the fare breakdown, then
-                  complete wallet payment from the conductor panel.
+                  collect payment through Razorpay in the conductor panel.
                 </p>
               </div>
             </div>
@@ -253,8 +382,8 @@ function ConductorDashboard() {
             <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
               <p className="text-sm font-semibold text-white">Payment flow</p>
               <p className="mt-2 text-sm leading-6 text-slate-300">
-                After pass verification succeeds, payment can be completed once using the saved
-                QR token and current route segment.
+                After pass verification succeeds, open Razorpay checkout and collect the travel
+                fare once for that journey.
               </p>
             </div>
           </section>
@@ -268,7 +397,7 @@ function ConductorDashboard() {
                   </p>
                   <h2 className="text-3xl font-semibold text-slate-900">Verify Pass</h2>
                   <p className="text-sm leading-6 text-slate-600">
-                    Scan or paste the QR token, verify the pass, then complete payment.
+                    Scan or paste the QR token, verify the pass, then collect payment.
                   </p>
                 </div>
 
@@ -287,10 +416,6 @@ function ConductorDashboard() {
                   type={cameraMessage === "QR code scanned successfully." ? "success" : "info"}
                   message={cameraMessage}
                 />
-                <AlertMessage
-                  type={paymentCompleted ? "success" : "info"}
-                  message={paymentMessage}
-                />
               </div>
 
               <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
@@ -303,7 +428,7 @@ function ConductorDashboard() {
                       onChange={handleChange}
                       placeholder="Paste scanned QR token"
                       rows={5}
-                      disabled={isLoading || isPaying}
+                      disabled={isLoading || isRazorpayPaying}
                       className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100 disabled:cursor-not-allowed disabled:bg-slate-100"
                     />
                   </label>
@@ -312,7 +437,7 @@ function ConductorDashboard() {
                     type="button"
                     variant={scanning ? "secondary" : "primary"}
                     onClick={handleScanToggle}
-                    disabled={isLoading || isPaying}
+                    disabled={isLoading || isRazorpayPaying}
                   >
                     {scanning ? "Close Scanner" : "Scan QR"}
                   </Button>
@@ -352,7 +477,7 @@ function ConductorDashboard() {
                   value={formData.currentFrom}
                   onChange={handleChange}
                   placeholder="Enter current from"
-                  disabled={isLoading || isPaying}
+                  disabled={isLoading || isRazorpayPaying}
                 />
 
                 <InputField
@@ -361,10 +486,10 @@ function ConductorDashboard() {
                   value={formData.currentTo}
                   onChange={handleChange}
                   placeholder="Enter current to"
-                  disabled={isLoading || isPaying}
+                  disabled={isLoading || isRazorpayPaying}
                 />
 
-                <Button type="submit" isLoading={isLoading} disabled={isPaying}>
+                <Button type="submit" isLoading={isLoading} disabled={isRazorpayPaying}>
                   Verify Pass
                 </Button>
               </form>
@@ -382,7 +507,7 @@ function ConductorDashboard() {
                       result.isValid ? "text-emerald-700" : "text-rose-700"
                     }`}
                   >
-                    {result.isValid ? "Valid Pass ✅" : "Invalid Pass ❌"}
+                    {result.isValid ? "Valid Pass" : "Invalid Pass"}
                   </p>
 
                   <p
@@ -398,7 +523,7 @@ function ConductorDashboard() {
                       <p>
                         <span className="font-semibold">Student Name:</span> {result.student.Name}
                       </p>
-                      <p>
+                      <p className="break-words">
                         <span className="font-semibold">Student Email:</span> {result.student.Email}
                       </p>
                       {result.route ? (
@@ -422,14 +547,17 @@ function ConductorDashboard() {
                   ) : null}
 
                   {result.isValid ? (
-                    <div className="mt-5">
+                    <div className="mt-5 space-y-3">
                       <Button
                         type="button"
-                        onClick={handleCompletePayment}
-                        isLoading={isPaying}
+                        variant="secondary"
+                        onClick={handleRazorpayPayment}
+                        isLoading={isRazorpayPaying}
                         disabled={isPaymentButtonDisabled}
                       >
-                        {isPaymentButtonDisabled && !isPaying ? "Payment Completed" : "Complete Payment"}
+                        {isPaymentButtonDisabled && !isRazorpayPaying
+                          ? "Payment Completed"
+                          : "Pay with Razorpay"}
                       </Button>
                     </div>
                   ) : null}
@@ -447,16 +575,17 @@ function ConductorDashboard() {
                         <span className="font-semibold">Final Payable:</span> Rs.{result.payment.amount}
                       </p>
                       <p>
-                        <span className="font-semibold">Remaining Balance:</span> Rs.{result.payment.balance}
+                        <span className="font-semibold">Payment Method:</span>{" "}
+                        {(result.payment.paymentProvider || "razorpay").toUpperCase()}
                       </p>
+                      {result.payment.razorpayPaymentId ? (
+                        <p>
+                          <span className="font-semibold">Razorpay Payment ID:</span>{" "}
+                          {result.payment.razorpayPaymentId}
+                        </p>
+                      ) : null}
                       <p>
                         <span className="font-semibold">Date:</span> {result.payment.paidAt}
-                      </p>
-                      <p>
-                        <span className="font-semibold">Email:</span>{" "}
-                        {result.payment.emailStatus?.sent
-                          ? "Sent to student"
-                          : result.payment.emailStatus?.message || "Not sent"}
                       </p>
                     </div>
                   ) : null}
@@ -474,7 +603,7 @@ function ConductorDashboard() {
                   <div>
                     <h3 className="text-lg font-semibold text-slate-900">Payment History</h3>
                     <p className="mt-1 text-xs leading-5 text-slate-600">
-                      Latest wallet payments completed from this conductor account.
+                      Latest payments collected from this conductor account.
                     </p>
                   </div>
                   {isLoadingHistory ? (
@@ -503,7 +632,7 @@ function ConductorDashboard() {
                           <p className="text-sm font-semibold text-slate-900">
                             {payment.student?.name || "Unknown student"}
                           </p>
-                          <p className="mt-1 truncate text-xs text-slate-600">
+                          <p className="mt-1 break-all text-xs text-slate-600">
                             {payment.student?.email || "No email"}
                           </p>
                         </div>
@@ -519,7 +648,10 @@ function ConductorDashboard() {
                       ) : null}
 
                       <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-500">
-                        <span>{payment.description || "Bus Travel Payment"}</span>
+                        <span>
+                          {(payment.description || "Bus Travel Payment")} {" "}
+                          {payment.paymentProvider ? `(${String(payment.paymentProvider).toUpperCase()})` : ""}
+                        </span>
                         <span>{payment.date ? new Date(payment.date).toLocaleString() : ""}</span>
                       </div>
                     </div>

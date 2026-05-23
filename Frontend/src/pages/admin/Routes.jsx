@@ -179,7 +179,7 @@ function Routes() {
       <AlertMessage type="error" message={errorMessage} />
       <AlertMessage type="success" message={successMessage} />
 
-      <section className="grid gap-4 xl:grid-cols-[420px_1fr]">
+      <section className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
         <form onSubmit={submitRoute} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="font-semibold text-slate-950">{editingId ? "Edit route" : "Add route"}</h2>
           <input className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm" name="from" value={form.from} onChange={handleChange} placeholder="From" />
@@ -194,17 +194,17 @@ function Routes() {
           </div>
         </form>
 
-        <div className="space-y-4">
-          <form onSubmit={applySearch} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_auto_auto]">
-            <input className="rounded-md border border-slate-200 px-3 py-2 text-sm" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search from or to" />
+        <div className="min-w-0 space-y-4">
+          <form onSubmit={applySearch} className="grid min-w-0 gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_auto_auto]">
+            <input className="min-w-0 rounded-md border border-slate-200 px-3 py-2 text-sm" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search from or to" />
             <button className="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white">Search</button>
             <button type="button" onClick={resetSearch} className="rounded-md border border-slate-200 px-4 py-2 text-sm font-semibold">Reset</button>
           </form>
           {!hasLoadedOnce ? (
             <Loader label="Loading routes..." />
           ) : (
-            <div className="space-y-4">
-              <div className="relative min-h-[560px]">
+            <div className="min-w-0 space-y-4">
+              <div className="relative min-h-[560px] min-w-0">
                 <Table columns={columns} rows={routes} emptyMessage="No routes found." />
                 {isLoading ? (
                   <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-white/70 backdrop-blur-[1px]">

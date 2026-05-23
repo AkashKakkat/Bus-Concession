@@ -41,14 +41,24 @@ export const markPaymentFailed = async ({ token, orderId, reason }) => {
   return response.data;
 };
 
-export const completePayment = async ({
+export const getConductorPaymentHistory = async ({ conductorToken }) => {
+  const response = await api.get("/payment/history", {
+    headers: {
+      Authorization: `Bearer ${conductorToken}`,
+    },
+  });
+
+  return response.data;
+};
+
+export const createConductorPaymentOrder = async ({
   conductorToken,
   token,
   currentFrom,
   currentTo,
 }) => {
   const response = await api.post(
-    "/payment/complete",
+    "/payment/conductor/create-order",
     {
       token,
       currentFrom,
@@ -64,12 +74,33 @@ export const completePayment = async ({
   return response.data;
 };
 
-export const getConductorPaymentHistory = async ({ conductorToken }) => {
-  const response = await api.get("/payment/history", {
+export const verifyConductorPayment = async ({ conductorToken, payment }) => {
+  const response = await api.post("/payment/conductor/verify", payment, {
     headers: {
       Authorization: `Bearer ${conductorToken}`,
     },
   });
+
+  return response.data;
+};
+
+export const markConductorPaymentFailed = async ({
+  conductorToken,
+  orderId,
+  reason,
+}) => {
+  const response = await api.post(
+    "/payment/conductor/failed",
+    {
+      razorpay_order_id: orderId,
+      reason,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${conductorToken}`,
+      },
+    }
+  );
 
   return response.data;
 };

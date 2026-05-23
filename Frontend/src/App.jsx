@@ -1,4 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminLogin from "./pages/AdminLogin";
 import ChangePassword from "./pages/ChangePassword";
@@ -21,104 +23,107 @@ import AdminSettings from "./pages/admin/Settings";
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      <Route path="/admin-login" element={<AdminLogin />} />
-      <Route path="/conductor-login" element={<ConductorLogin />} />
-      <Route path="/conductor-signup" element={<Navigate to="/admin-login" replace />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<SignupPage />} />
-      <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute
-            tokenKey="adminToken"
-            roleKey="adminRole"
-            requiredRole="admin"
-            redirectTo="/admin-login"
-          >
-            <AdminLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<Navigate to="/admin/dashboard" replace />} />
-        <Route path="dashboard" element={<AdminOverview />} />
-        <Route path="students" element={<AdminStudents />} />
-        <Route path="conductors" element={<AdminConductors />} />
-        <Route path="routes" element={<AdminRoutes />} />
-        <Route path="transactions" element={<AdminTransactions />} />
-        <Route path="settings" element={<AdminSettings />} />
-      </Route>
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute
-            tokenKey="token"
-            roleKey="studentRole"
-            requiredRole="student"
-            redirectTo="/login"
-          >
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/conductor-dashboard"
-        element={
-          <ProtectedRoute
-            tokenKey="conductorToken"
-            roleKey="conductorRole"
-            requiredRole="conductor"
-            redirectTo="/conductor-login"
-          >
-            <ConductorDashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/generate-pass"
-        element={
-          <ProtectedRoute
-            tokenKey="token"
-            roleKey="studentRole"
-            requiredRole="student"
-            redirectTo="/login"
-          >
-            <StudentPass />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/change-password"
-        element={
-          <ProtectedRoute
-            tokenKey="token"
-            roleKey="studentRole"
-            requiredRole="student"
-            redirectTo="/login"
-          >
-            <ChangePassword />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/wallet"
-        element={
-          <ProtectedRoute
-            tokenKey="token"
-            roleKey="studentRole"
-            requiredRole="student"
-            redirectTo="/login"
-          >
-            <Wallet />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/routes" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/admin-login" element={<AdminLogin />} />
+        <Route path="/conductor-login" element={<ConductorLogin />} />
+        <Route path="/conductor-signup" element={<Navigate to="/admin-login" replace />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/admin-dashboard" element={<Navigate to="/admin/dashboard" replace />} />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute
+              tokenKey="adminToken"
+              roleKey="adminRole"
+              requiredRole="admin"
+              redirectTo="/admin-login"
+            >
+              <AdminLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="dashboard" element={<AdminOverview />} />
+          <Route path="students" element={<AdminStudents />} />
+          <Route path="conductors" element={<AdminConductors />} />
+          <Route path="routes" element={<AdminRoutes />} />
+          <Route path="transactions" element={<AdminTransactions />} />
+          <Route path="settings" element={<AdminSettings />} />
+        </Route>
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute
+              tokenKey="token"
+              roleKey="studentRole"
+              requiredRole="student"
+              redirectTo="/login"
+            >
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/conductor-dashboard"
+          element={
+            <ProtectedRoute
+              tokenKey="conductorToken"
+              roleKey="conductorRole"
+              requiredRole="conductor"
+              redirectTo="/conductor-login"
+            >
+              <ConductorDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/generate-pass"
+          element={
+            <ProtectedRoute
+              tokenKey="token"
+              roleKey="studentRole"
+              requiredRole="student"
+              redirectTo="/login"
+            >
+              <StudentPass />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/change-password"
+          element={
+            <ProtectedRoute
+              tokenKey="token"
+              roleKey="studentRole"
+              requiredRole="student"
+              redirectTo="/login"
+            >
+              <ChangePassword />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/wallet"
+          element={
+            <ProtectedRoute
+              tokenKey="token"
+              roleKey="studentRole"
+              requiredRole="student"
+              redirectTo="/login"
+            >
+              <Wallet />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/routes" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <ToastContainer position="top-right" autoClose={2500} hideProgressBar={false} />
+    </>
   );
 }
 
